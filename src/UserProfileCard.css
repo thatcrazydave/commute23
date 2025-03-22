@@ -1,0 +1,462 @@
+/* UserProfileCard.css - Redesigned to match dashboard aesthetics */
+:root {
+  --primary-color: #4a6cf7;
+  --primary-light: #eef2ff;
+  --primary-dark: #3a5ce5;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --text-color: #1f2937;
+  --text-light: #6b7280;
+  --text-lighter: #9ca3af;
+  --border-color: #e5e7eb;
+  --background-color: #f9fafb;
+  --card-background: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --transition-fast: 0.2s ease;
+}
+
+.user-profile-card {
+  background-color: var(--card-background);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+  margin-bottom: 1.5rem;
+}
+
+.user-profile-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-header {
+  position: relative;
+}
+
+.profile-cover {
+  position: relative;
+  height: 140px;
+  overflow: hidden;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-cover-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.edit-cover-button:hover {
+  background-color: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-avatar-container {
+  position: absolute;
+  bottom: -3rem;
+  left: 1.5rem;
+}
+
+.profile-avatar {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+  border: 4px solid white;
+  object-fit: cover;
+  background-color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.edit-avatar-button {
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.edit-avatar-button:hover {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-info {
+  padding: 3.5rem 1.5rem 1.5rem;
+}
+
+.profile-name {
+  margin: 0 0 0.375rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.profile-headline {
+  margin: 0 0 1rem;
+  color: var(--text-light);
+  font-size: 0.9375rem;
+}
+
+.profile-bio {
+  margin: 0 0 1.25rem;
+  color: var(--text-color);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.profile-details {
+  margin-bottom: 1.25rem;
+}
+
+.profile-detail {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.625rem;
+  color: var(--text-light);
+  font-size: 0.875rem;
+}
+
+.detail-icon {
+  margin-right: 0.625rem;
+  color: var(--primary-color);
+  min-width: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-skills {
+  margin-bottom: 1.25rem;
+}
+
+.skills-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.625rem;
+  color: var(--text-color);
+}
+
+.skills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.skill-tag {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+.social-links {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  justify-content: center;
+}
+
+.social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background-color: var(--background-color);
+  color: var(--text-light);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.social-link:hover {
+  background-color: var(--primary-color);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 1.25rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: var(--text-color);
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-profile-button {
+  width: 100%;
+  padding: 0.75rem 0;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--primary-light);
+  border: none;
+  color: var(--primary-color);
+  font-size: 0.9375rem;
+}
+
+.edit-profile-button:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.connect-button, .message-button {
+  flex: 1;
+  padding: 0.75rem 0;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  border: none;
+}
+
+.connect-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.connect-button:hover {
+  background-color: var(--primary-dark);
+}
+
+.message-button {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.message-button:hover {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  border-color: var(--primary-light);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .profile-cover {
+    height: 120px;
+  }
+  
+  .profile-avatar {
+    width: 5rem;
+    height: 5rem;
+  }
+  
+  .profile-avatar-container {
+    bottom: -2.5rem;
+    left: 1.25rem;
+  }
+  
+  .profile-info {
+    padding: 3rem 1.25rem 1.25rem;
+  }
+  
+  .profile-name {
+    font-size: 1.125rem;
+  }
+  
+  .profile-headline {
+    font-size: 0.875rem;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-cover {
+    height: 100px;
+  }
+  
+  .profile-avatar {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+  
+  .profile-avatar-container {
+    bottom: -2.25rem;
+    left: 1rem;
+  }
+  
+  .profile-info {
+    padding: 2.75rem 1rem 1rem;
+  }
+  
+  .profile-name {
+    font-size: 1rem;
+  }
+  
+  .profile-headline {
+    font-size: 0.8125rem;
+  }
+  
+  .profile-bio {
+    font-size: 0.8125rem;
+  }
+  
+  .profile-detail {
+    font-size: 0.8125rem;
+  }
+  
+  .stat-value {
+    font-size: 1rem;
+  }
+  
+  .social-link {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .user-profile-card {
+    background-color: #1f2937;
+    border-color: #374151;
+  }
+  
+  .profile-name {
+    color: #f9fafb;
+  }
+  
+  .profile-headline {
+    color: #d1d5db;
+  }
+  
+  .profile-bio {
+    color: #e5e7eb;
+  }
+  
+  .profile-detail {
+    color: #d1d5db;
+  }
+  
+  .skills-title {
+    color: #f9fafb;
+  }
+  
+  .skill-tag {
+    background-color: rgba(74, 108, 247, 0.2);
+  }
+  
+  .social-link {
+    background-color: #374151;
+    color: #d1d5db;
+  }
+  
+  .profile-stats {
+    border-color: #374151;
+  }
+  
+  .stat-value {
+    color: #f9fafb;
+  }
+  
+  .stat-label {
+    color: #9ca3af;
+  }
+  
+  .edit-profile-button {
+    background-color: rgba(74, 108, 247, 0.2);
+  }
+  
+  .message-button {
+    background-color: #374151;
+    color: #e5e7eb;
+    border-color: #4b5563;
+  }
+  
+  .message-button:hover {
+    background-color: rgba(74, 108, 247, 0.2);
+    border-color: transparent;
+  }
+  
+  .edit-cover-button, .edit-avatar-button {
+    background-color: #374151;
+    color: #e5e7eb;
+  }
+  
+  .edit-cover-button:hover, .edit-avatar-button:hover {
+    background-color: #4b5563;
+  }
+}

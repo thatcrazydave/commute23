@@ -1,0 +1,27 @@
+/* .loading-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 3px solid rgba(74, 108, 247, 0.2);
+  border-top-color: #4a6cf7;
+  margin-bottom: 20px;
+}
+
+.spinner-inner {
+  width: 100%;
+  height: 100%;
+}
+
+.loading-spinner-container p {
+  color: #666;
+  font-size: 16px;
+}  */
