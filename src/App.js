@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AnimatePresence } from 'framer-motion';
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { AnimatePresence, motion } from 'framer-motion';
 import Login from "./login";
 import Signup from "./signup";
 import Dashboard from "./Dashboard";
@@ -983,7 +983,7 @@ function App() {
                         <PlaceholderPage title="Community Guidelines" />
                       </PageTransition>
                     } />
-                    <Route path="/dashboard-test" element={<DashboardNetworkTest />} />
+                    {/* <Route path="/dashboard-test" element={<DashboardNetworkTest />} /> */}
                     <Route path="*" element={
                       <PageTransition>
                         <div className="page-container">
