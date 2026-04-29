@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft, FaGoogle, FaGithub } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaArrowLeft, FaGoogle, FaGithub } from 'react-icons/fa';
 import './login.css';
 
 const Login = () => {

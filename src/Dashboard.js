@@ -3,15 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  getDoc, 
+import {
+  collection,
+  query,
+  getDocs,
+  doc,
+  getDoc,
   setDoc,
-  orderBy, 
+  orderBy,
   limit,
   Timestamp,
   updateDoc,
@@ -22,36 +21,19 @@ import {
   serverTimestamp,
   deleteDoc
 } from 'firebase/firestore';
-import { 
-  FaBell, 
-  FaCalendarAlt, 
-  FaUserFriends, 
-  FaBookmark, 
-  FaCog, 
+import {
+  FaUserFriends,
   FaSignOutAlt,
-  FaPlus,
-  FaThumbsUp,
-  FaComment,
-  FaShare,
-  FaEllipsisH,
   FaSearch,
-  FaUser,
   FaEdit,
   FaCheckCircle,
-  FaExclamationTriangle,
   FaWifi,
   FaBan,
   FaExclamationCircle,
-  FaTimes,
   FaUserCircle,
-  FaCloudDownloadAlt,
-  FaCloudUploadAlt,
-  FaInfoCircle,
   FaSyncAlt,
-  FaImage
 } from 'react-icons/fa';
 import DashboardSidebar from './DashboardSidebar';
-import EventCard from './EventCard';
 import ConnectionCard from './ConnectionCard';
 import PostCard from './PostCard';
 import CreatePostModal from './CreatePostModal';
@@ -293,82 +275,6 @@ const NetworkStatusBanner = ({ isOnline, onRetry }) => {
   );
 };
 
-// Offline banner component
-const OfflineBanner = ({ onRetry }) => {
-  return (
-    <div className="offline-banner">
-      <div className="offline-icon">
-        <FaBan />
-      </div>
-      <div className="offline-message">
-        <h3>You're currently offline</h3>
-        <p>Limited functionality is available. Some actions will be queued until you're back online.</p>
-      </div>
-      <button className="retry-connection" onClick={onRetry}>
-        <FaSyncAlt /> Retry Connection
-      </button>
-    </div>
-  );
-};
-
-// Offline action queue component
-const OfflineActionQueue = ({ pendingActions, onClear }) => {
-  if (!pendingActions || pendingActions.length === 0) return null;
-  
-  return (
-    <div className="offline-queue-indicator">
-      <FaCloudUploadAlt />
-      <span>{pendingActions.length} pending {pendingActions.length === 1 ? 'action' : 'actions'}</span>
-      <button onClick={onClear} className="clear-queue">Clear</button>
-    </div>
-  );
-};
-
-// Feature availability component
-const FeatureAvailability = ({ feature }) => {
-  return (
-    <div className="feature-availability">
-      <FaInfoCircle />
-      <span>{feature} is not available offline</span>
-    </div>
-  );
-};
-
-// Reconnection indicator component
-const ReconnectionIndicator = ({ attemptCount, nextAttemptTime }) => {
-  const [countdown, setCountdown] = useState(0);
-  
-  useEffect(() => {
-    if (!nextAttemptTime) return;
-    
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.ceil((nextAttemptTime - now) / 1000));
-      setCountdown(remaining);
-      
-      if (remaining <= 0) {
-        clearInterval(interval);
-      }
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [nextAttemptTime]);
-  
-  return (
-    <div className="reconnection-indicator">
-      <div className="reconnection-spinner">
-        <FaSyncAlt className={countdown > 0 ? '' : 'spinning'} />
-      </div>
-      <div className="reconnection-text">
-        {countdown > 0 ? (
-          <span>Reconnecting in {countdown}s (Attempt {attemptCount})</span>
-        ) : (
-          <span>Attempting to reconnect... (Attempt {attemptCount})</span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 // Add this new component for connection recommendations
 const ConnectionRecommendation = ({ recommendation, onConnect, isOffline }) => {
@@ -431,30 +337,18 @@ const Dashboard = () => {
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Data state
   const [posts, setPosts] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
-  const [events, setEvents] = useState([]);
   const [connections, setConnections] = useState([]);
   const [recommendedConnections, setRecommendedConnections] = useState([]);
-  const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   
   // Loading and error state
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dataLoadingState, setDataLoadingState] = useState({
-    profile: 'pending',
-    posts: 'pending',
-    events: 'pending',
-    connections: 'pending',
-    recommendations: 'pending',
-    notifications: 'pending'
-  });
   
   // Network state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -468,42 +362,12 @@ const Dashboard = () => {
     connections: [],
     recommendations: []
   });
-  const [lastSyncTime, setLastSyncTime] = useState(null);
-  
   // Reconnection state
   const [reconnectionAttempt, setReconnectionAttempt] = useState(0);
-  const [nextReconnectionTime, setNextReconnectionTime] = useState(null);
-  const [isReconnecting, setIsReconnecting] = useState(false);
   const reconnectionTimerRef = useRef(null);
   
   // Debug mode
   const [debugMode, setDebugMode] = useState(false);
-  
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        duration: 0.5,
-        when: "beforeChildren",
-        staggerChildren: 0.1
-      }
-    },
-    exit: {
-      opacity: 0,
-      transition: { duration: 0.3 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { duration: 0.5 }
-    }
-  };
   
   // Function to cache data for offline use
   const cacheDataForOffline = (dataType, data) => {
@@ -526,7 +390,7 @@ const Dashboard = () => {
     try {
       const lastSync = localStorage.getItem('dashboard_lastSync');
       if (lastSync) {
-        setLastSyncTime(new Date(lastSync));
+        // lastSync recorded but not currently displayed
       }
       
       const profile = localStorage.getItem('dashboard_profile');
@@ -563,53 +427,44 @@ const Dashboard = () => {
     const jitter = Math.random() * 1000;
     const delay = baseDelay + jitter;
     
-    // Set the next reconnection time for UI countdown
-    setNextReconnectionTime(Date.now() + delay);
-    
     // Schedule the reconnection attempt
     reconnectionTimerRef.current = setTimeout(() => {
       setReconnectionAttempt(nextAttempt);
       attemptReconnection();
     }, delay);
     
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, isOfflineMode, reconnectionAttempt]);
-  
+
   // Function to attempt reconnection to Firebase
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const attemptReconnection = useCallback(async () => {
     if (isOnline || !isOfflineMode || !user) return;
-    
-    setIsReconnecting(true);
-    
+
     try {
-      // Check if we can connect to Firebase
       const userDocRef = doc(db, 'users', user.uid);
       const userDocSnap = await getDoc(userDocRef);
-      
+
       if (userDocSnap.exists()) {
         setIsOnline(true);
         setIsOfflineMode(false);
         setShowNetworkBanner(true);
         setTimeout(() => setShowNetworkBanner(false), 3000);
-        
-        // Process any pending actions
+
         if (pendingActions.length > 0) {
           processPendingActions();
         }
-        
-        // Refresh data
+
         fetchUserProfile(user.uid);
-        setIsReconnecting(false);
         setReconnectionAttempt(0);
       } else {
         throw new Error("User document not found");
       }
     } catch (error) {
-      setIsReconnecting(false);
-      
-      // Schedule next reconnection attempt
       scheduleReconnection();
     }
-  }, [isOnline, isOfflineMode, user, reconnectionAttempt, pendingActions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, isOfflineMode, user, pendingActions]);
   
   // Process pending actions when back online
   const processPendingActions = useCallback(async () => {
@@ -712,9 +567,6 @@ const Dashboard = () => {
             break;
             
           case 'connect_user':
-            // Process pending connection
-            const connectionData = action.data.connectionData;
-            
             try {
               const connectionRef = collection(db, 'connections');
               await addDoc(connectionRef, {
@@ -820,6 +672,7 @@ const Dashboard = () => {
         clearTimeout(reconnectionTimerRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, pendingActions, processPendingActions, scheduleReconnection]);
   
   // Debug mode keyboard shortcut
@@ -849,8 +702,8 @@ const Dashboard = () => {
         // Redirect to login if not authenticated
         navigate('/login');
       }
-    }, (error) => {
-      setError("Authentication error. Please try again.");
+    }, (authError) => {
+      console.error("Authentication error:", authError);
       setIsLoading(false);
     });
 
@@ -858,6 +711,7 @@ const Dashboard = () => {
       isMounted = false;
       unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
   
   // Ensure user document exists
@@ -913,27 +767,20 @@ const Dashboard = () => {
   }, [searchQuery, posts]);
 
   // Fetch user profile
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchUserProfile = async (userId, retryCount = 0) => {
     try {
-      setDataLoadingState(prev => ({ ...prev, profile: 'loading' }));
-      
       const userDocRef = doc(db, 'users', userId);
       const userDocSnap = await getDoc(userDocRef);
-      
+
       if (userDocSnap.exists()) {
         const profileData = userDocSnap.data();
         setUserProfile(profileData);
-        setDataLoadingState(prev => ({ ...prev, profile: 'success' }));
-        
-        // Cache profile data for offline use
         cacheDataForOffline('profile', profileData);
-        
-        // Check if this is a returning user who hasn't completed their profile
         if (!profileData.isProfileComplete) {
           setShowProfileSetup(true);
         }
       } else {
-        // Create a basic user document for existing accounts
         const basicProfile = {
           uid: userId,
           email: user?.email || "",
@@ -944,10 +791,8 @@ const Dashboard = () => {
           updatedAt: Timestamp.now(),
           isProfileComplete: false
         };
-        
         try {
           await setDoc(userDocRef, basicProfile);
-          
           setUserProfile(basicProfile);
           setShowProfileSetup(true);
           setIsNewUser(true);
@@ -956,44 +801,35 @@ const Dashboard = () => {
           throw createError;
         }
       }
-      
-      // Set loading to false after getting the profile
+
       setIsLoading(false);
-      
-      // Then load the rest of the data in the background
       loadDashboardData(userId);
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      setDataLoadingState(prev => ({ ...prev, profile: 'error' }));
-      
-      // If offline, try to use cached data
+
       if (!navigator.onLine) {
         if (cachedData.profile) {
           setUserProfile(cachedData.profile);
-          setIsLoading(false);
           setIsOfflineMode(true);
         } else {
           loadCachedData();
           if (cachedData.profile) {
             setUserProfile(cachedData.profile);
-            setIsLoading(false);
             setIsOfflineMode(true);
           } else {
-            setError("No cached profile data available. Please connect to the internet.");
-            setIsLoading(false);
+            console.error("No cached profile data available.");
           }
         }
+        setIsLoading(false);
         return;
       }
-      
-      // Retry logic for network errors
+
       if ((error.code === 'unavailable' || error.code === 'failed-precondition') && retryCount < 3) {
         setTimeout(() => fetchUserProfile(userId, retryCount + 1), (retryCount + 1) * 2000);
         return;
       }
-      
-      // If we've exhausted retries or it's not a network error
-      setError("Failed to load user profile. Please check your connection and refresh the page.");
+
+      console.error("Failed to load user profile. Please check your connection and refresh the page.");
       setIsLoading(false);
     }
   };
@@ -1034,23 +870,18 @@ const Dashboard = () => {
   // Fetch posts with caching
   const fetchPosts = async (userId) => {
     try {
-      setDataLoadingState(prev => ({ ...prev, posts: 'loading' }));
-      
-      // Try to fetch real posts from Firestore
       const postsQuery = query(
         collection(db, 'posts'),
         orderBy('createdAt', 'desc'),
         limit(20)
       );
-      
+
       const postsSnapshot = await getDocs(postsQuery);
-      
+
       if (!postsSnapshot.empty) {
         const postsData = postsSnapshot.docs.map(doc => {
           const data = doc.data();
-          // Check if the current user has liked this post
           const isLiked = data.likes?.some(like => like.userId === userId);
-          
           return {
             id: doc.id,
             ...data,
@@ -1060,12 +891,9 @@ const Dashboard = () => {
             isLiked
           };
         });
-        
+
         setPosts(postsData);
         setFilteredPosts(postsData);
-        setDataLoadingState(prev => ({ ...prev, posts: 'success' }));
-        
-        // Cache posts for offline use
         cacheDataForOffline('posts', postsData);
       } else {
         // If no posts found, use dummy data
@@ -1134,20 +962,13 @@ const Dashboard = () => {
         
         setPosts(dummyPosts);
         setFilteredPosts(dummyPosts);
-        setDataLoadingState(prev => ({ ...prev, posts: 'success' }));
-        
-        // Cache posts for offline use
         cacheDataForOffline('posts', dummyPosts);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
-      setDataLoadingState(prev => ({ ...prev, posts: 'error' }));
-      
-      // If offline, try to use cached data
       if (!navigator.onLine && cachedData.posts.length > 0) {
         setPosts(cachedData.posts);
         setFilteredPosts(cachedData.posts);
-        setDataLoadingState(prev => ({ ...prev, posts: 'success' }));
       } else {
         setPosts([]);
         setFilteredPosts([]);
@@ -1156,22 +977,16 @@ const Dashboard = () => {
   };
 
   // Fetch events with error handling
-  const fetchEvents = async (userId) => {
+  const fetchEvents = async () => {
     try {
-      setDataLoadingState(prev => ({ ...prev, events: 'loading' }));
-      
-      // Create dummy events
       const dummyEvents = [
         {
           id: '1',
           title: 'Web Development Workshop',
-          eventDate: Timestamp.fromDate(new Date(Date.now() + 7 * 86400000)), // 7 days from now
+          eventDate: Timestamp.fromDate(new Date(Date.now() + 7 * 86400000)),
           location: 'Virtual',
           organizerId: 'admin',
-          organizer: {
-            firstName: 'Community',
-            lastName: 'Admin'
-          },
+          organizer: { firstName: 'Community', lastName: 'Admin' },
           attendeesCount: 15,
           isAttending: false,
           imageUrl: '/images/webdev.jpg'
@@ -1179,84 +994,46 @@ const Dashboard = () => {
         {
           id: '2',
           title: 'Networking Mixer',
-          eventDate: Timestamp.fromDate(new Date(Date.now() + 14 * 86400000)), // 14 days from now
+          eventDate: Timestamp.fromDate(new Date(Date.now() + 14 * 86400000)),
           location: 'Tech Hub Downtown',
           organizerId: 'admin',
-          organizer: {
-            firstName: 'Community',
-            lastName: 'Admin'
-          },
+          organizer: { firstName: 'Community', lastName: 'Admin' },
           attendeesCount: 28,
           isAttending: false,
           imageUrl: '/images/networking.jpg'
         }
       ];
-      
-      setEvents(dummyEvents);
-      setDataLoadingState(prev => ({ ...prev, events: 'success' }));
-      
-      // Cache events for offline use
       cacheDataForOffline('events', dummyEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
-      setDataLoadingState(prev => ({ ...prev, events: 'error' }));
-      
-      // If offline, try to use cached data
-      if (!navigator.onLine && cachedData.events.length > 0) {
-        setEvents(cachedData.events);
-        setDataLoadingState(prev => ({ ...prev, events: 'success' }));
-      } else {
-        setEvents([]);
-      }
     }
   };
 
   // Fetch connections with error handling
   const fetchConnections = async (userId) => {
     try {
-      setDataLoadingState(prev => ({ ...prev, connections: 'loading' }));
-      
-      // Create dummy connections
       const dummyConnections = [
         {
           id: '1',
           userId: userId,
           connectedUserId: 'user1',
           status: 'connected',
-          user: {
-            firstName: 'Sarah',
-            lastName: 'Johnson',
-            headline: 'Frontend Developer',
-            photoURL: '/images/avatar1.jpg'
-          }
+          user: { firstName: 'Sarah', lastName: 'Johnson', headline: 'Frontend Developer', photoURL: '/images/avatar1.jpg' }
         },
         {
           id: '2',
           userId: userId,
           connectedUserId: 'user2',
           status: 'connected',
-          user: {
-            firstName: 'Michael',
-            lastName: 'Chen',
-            headline: 'Data Scientist',
-            photoURL: '/images/avatar2.jpg'
-          }
+          user: { firstName: 'Michael', lastName: 'Chen', headline: 'Data Scientist', photoURL: '/images/avatar2.jpg' }
         }
       ];
-      
       setConnections(dummyConnections);
-      setDataLoadingState(prev => ({ ...prev, connections: 'success' }));
-      
-      // Cache connections for offline use
       cacheDataForOffline('connections', dummyConnections);
     } catch (error) {
       console.error('Error fetching connections:', error);
-      setDataLoadingState(prev => ({ ...prev, connections: 'error' }));
-      
-      // If offline, try to use cached data
       if (!navigator.onLine && cachedData.connections.length > 0) {
         setConnections(cachedData.connections);
-        setDataLoadingState(prev => ({ ...prev, connections: 'success' }));
       } else {
         setConnections([]);
       }
@@ -1266,8 +1043,6 @@ const Dashboard = () => {
   // Fetch recommended connections with error handling
   const fetchRecommendedConnections = async (userId) => {
     try {
-      setDataLoadingState(prev => ({ ...prev, recommendations: 'loading' }));
-      
       let dummyRecommendations = [];
       
       // Check if we should use profile-based recommendations
@@ -1405,19 +1180,11 @@ const Dashboard = () => {
       const shuffled = [...filteredRecommendations].sort(() => 0.5 - Math.random());
       
       setRecommendedConnections(shuffled);
-      setDataLoadingState(prev => ({ ...prev, recommendations: 'success' }));
-      
-      // Cache recommendations for offline use
       cacheDataForOffline('recommendations', shuffled);
-      
     } catch (error) {
       console.error('Error fetching recommended connections:', error);
-      setDataLoadingState(prev => ({ ...prev, recommendations: 'error' }));
-      
-      // If offline, try to use cached data
       if (!navigator.onLine && cachedData.recommendations.length > 0) {
         setRecommendedConnections(cachedData.recommendations);
-        setDataLoadingState(prev => ({ ...prev, recommendations: 'success' }));
       } else {
         setRecommendedConnections([]);
       }
@@ -1427,9 +1194,6 @@ const Dashboard = () => {
   // Fetch notifications with error handling
   const fetchNotifications = async (userId) => {
     try {
-      setDataLoadingState(prev => ({ ...prev, notifications: 'loading' }));
-      
-      // Create dummy notifications
       const dummyNotifications = [
         {
           id: '1',
@@ -1442,18 +1206,13 @@ const Dashboard = () => {
           id: '2',
           userId: userId,
           content: 'New event: Web Development Workshop is happening next week.',
-          createdAt: Timestamp.fromDate(new Date(Date.now() - 86400000)), // 1 day ago
+          createdAt: Timestamp.fromDate(new Date(Date.now() - 86400000)),
           read: true
         }
       ];
-      
-      setNotifications(dummyNotifications);
       setUnreadNotifications(dummyNotifications.filter(n => !n.read).length);
-      setDataLoadingState(prev => ({ ...prev, notifications: 'success' }));
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      setDataLoadingState(prev => ({ ...prev, notifications: 'error' }));
-      setNotifications([]);
       setUnreadNotifications(0);
     }
   };

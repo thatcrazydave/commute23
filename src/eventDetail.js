@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaUser, FaArrowLeft, FaHeart, FaRegHeart, FaShare, FaTicketAlt, FaMapMarked, FaUserFriends } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaArrowLeft, FaHeart, FaRegHeart, FaShare, FaTicketAlt, FaMapMarked, FaUserFriends } from 'react-icons/fa';
 import './eventDetail.css';
 
 const EventDetail = () => {

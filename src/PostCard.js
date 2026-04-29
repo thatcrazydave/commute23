@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaThumbsUp, FaComment, FaShare, FaEllipsisH } from 'react-icons/fa';
+import { FaThumbsUp, FaComment, FaEllipsisH } from 'react-icons/fa';
 
 const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete, isOffline }) => {
   const [showComments, setShowComments] = useState(false);
