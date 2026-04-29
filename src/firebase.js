@@ -4,10 +4,10 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC1ho8RFvHACSg2YH15oWVuUVLDjzrsP4s",
-  authDomain: "commute-8296c.firebaseapp.com",
-  projectId: "commute-8296c",
-  storageBucket: "commute-8296c.firebasestorage.app",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
 };
 
 const app = initializeApp(firebaseConfig);
