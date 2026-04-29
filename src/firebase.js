@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED, connectFirestoreEmulator } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -20,33 +20,18 @@ try {
   throw error;
 }
 
-// Initialize Firestore with settings for better offline support
+// Initialize Firestore with persistent cache (Firebase v10+ API)
 let db;
 try {
   db = initializeFirestore(app, {
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
   });
-  console.log("Firestore initialized successfully");
-  
-  // Enable offline persistence
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log("Firestore persistence enabled successfully");
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn("Firestore persistence failed: Multiple tabs open");
-      } else if (err.code === 'unimplemented') {
-        console.warn("Firestore persistence failed: Browser not supported");
-      } else {
-        console.error("Firestore persistence error:", err);
-      }
-    });
+  console.log("Firestore initialized successfully with persistent cache");
 } catch (error) {
   console.error("Error initializing Firestore:", error);
-  // Fallback to standard initialization
+  // Fallback to standard initialization without persistence
   try {
-    db = initializeFirestore(app);
+    db = initializeFirestore(app, {});
     console.log("Firestore initialized with fallback method");
   } catch (fallbackError) {
     console.error("Firestore fallback initialization failed:", fallbackError);
@@ -64,17 +49,6 @@ try {
   throw error;
 }
 
-// Use emulators for local development if needed
-if (window.location.hostname === "localhost") {
-  try {
-    // Uncomment these lines if you're using Firebase emulators
-    // connectFirestoreEmulator(db, 'localhost', 8080);
-    // connectAuthEmulator(auth, 'http://localhost:9099');
-    // console.log("Connected to Firebase emulators");
-  } catch (error) {
-    console.error("Error connecting to Firebase emulators:", error);
-  }
-}
 
 const storage = getStorage(app);
 
