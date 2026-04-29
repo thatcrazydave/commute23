@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { collection, getDocs, query, where, orderBy, limit, Timestamp, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth, storage } from './firebase';
 import { useNavigate } from 'react-router-dom';
-import { FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaFilter, FaClock, FaUser, FaHeart, FaRegHeart, 
-         FaPlus, FaTimes, FaCamera, FaUsers, FaTicketAlt, FaShare, FaDownload, FaCalendarPlus, FaExclamationTriangle, FaTh, FaList, FaSort, FaChevronDown } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaFilter, FaClock, FaHeart, FaRegHeart,
+         FaPlus, FaTimes, FaCamera, FaUsers, FaTicketAlt, FaShare, FaCalendarPlus, FaExclamationTriangle, FaTh, FaList, FaSort, FaChevronDown } from 'react-icons/fa';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import './events.css';

@@ -20,7 +20,6 @@ const Navbar = ({ isLoggedIn, userProfile, handleLogout }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Handle scroll event to add shadow to navbar
@@ -836,6 +835,7 @@ function App() {
 
   return (
     <Router>
+      <ScrollToTop />
       <div className="App">
         <Routes>
           <Route path="*" element={
