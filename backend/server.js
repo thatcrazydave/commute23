@@ -8,7 +8,14 @@ const { initFirebaseAdmin } = require('./config/firebaseAdmin');
 const { authLimiter, generalLimiter, passwordResetLimiter } = require('./middleware/rateLimiter');
 const Logger = require('./utils/logger');
 
+const path = require('path');
 const authRoutes = require('./routes/auth');
+const postsRoutes = require('./routes/posts');
+const connectionsRoutes = require('./routes/connections');
+const eventsRoutes = require('./routes/events');
+const notificationsRoutes = require('./routes/notifications');
+const uploadRoutes = require('./routes/upload');
+const usersRoutes = require('./routes/users');
 
 const app = express();
 
@@ -43,13 +50,21 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Auth routes — strict limiter
 app.use('/api/auth/forgot-password', passwordResetLimiter);
 app.use('/api/auth/reset-password', passwordResetLimiter);
 app.use('/api/auth', authLimiter, authRoutes);
 
-// General limiter for everything else
-app.use('/api', generalLimiter);
+// App routes — general limiter
+app.use('/api/posts', generalLimiter, postsRoutes);
+app.use('/api/connections', generalLimiter, connectionsRoutes);
+app.use('/api/events', generalLimiter, eventsRoutes);
+app.use('/api/notifications', generalLimiter, notificationsRoutes);
+app.use('/api/upload', generalLimiter, uploadRoutes);
+app.use('/api/users', generalLimiter, usersRoutes);
 
 // 404
 app.use((req, res) => {
