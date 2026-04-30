@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  sendEmailVerification,
-  signOut
-} from 'firebase/auth';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
-import { auth, db } from './firebase';
-import { FaEye, FaEyeSlash, FaCheck, FaTimes, FaInfoCircle } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaCheck, FaTimes, FaGoogle, FaGithub } from 'react-icons/fa';
+import { useAuth } from './contexts/AuthContext';
 import './signup.css';
+
+const slugifyUsername = (firstName, lastName, email) => {
+  const base = (firstName || email?.split('@')[0] || 'user')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  const tail = (lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const stem = (base + (tail ? `_${tail}` : '')).slice(0, 20) || 'user';
+  return `${stem}_${Date.now().toString(36).slice(-4)}`;
+};
 
 const Signup = () => {
   const navigate = useNavigate();
+  const { signup, loginWithProvider } = useAuth();
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -28,201 +33,129 @@ const Signup = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({
     score: 0,
-    requirements: {
-      length: false,
-      uppercase: false,
-      lowercase: false,
-      number: false,
-      special: false
-    }
+    requirements: { length: false, uppercase: false, lowercase: false, number: false, special: false },
   });
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [socialLoading, setSocialLoading] = useState('');
 
-  // Check password strength in real-time
   const checkPasswordStrength = (password) => {
     const requirements = {
       length: password.length >= 8,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
       number: /\d/.test(password),
-      special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
     };
-
     const score = Object.values(requirements).filter(Boolean).length;
     setPasswordStrength({ score, requirements });
   };
 
   const validateForm = () => {
-    const newErrors = {};
-    
-    // First Name validation
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
-    } else if (!/^[a-zA-Z\s]{2,30}$/.test(formData.firstName.trim())) {
-      newErrors.firstName = 'Please enter a valid first name';
+    const next = {};
+    if (!formData.firstName.trim()) next.firstName = 'First name is required';
+    else if (!/^[\p{L}\p{M}\s'.-]{1,40}$/u.test(formData.firstName.trim()))
+      next.firstName = 'Please enter a valid first name';
+
+    if (!formData.lastName.trim()) next.lastName = 'Last name is required';
+    else if (!/^[\p{L}\p{M}\s'.-]{1,40}$/u.test(formData.lastName.trim()))
+      next.lastName = 'Please enter a valid last name';
+
+    if (!formData.email) next.email = 'Email is required';
+    else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email))
+      next.email = 'Please enter a valid email address';
+
+    if (formData.username && !/^[a-zA-Z0-9_-]{3,30}$/.test(formData.username)) {
+      next.username = 'Username must be 3-30 chars, letters/numbers/underscore/hyphen';
     }
 
-    // Last Name validation
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
-    } else if (!/^[a-zA-Z\s]{2,30}$/.test(formData.lastName.trim())) {
-      newErrors.lastName = 'Please enter a valid last name';
-    }
+    if (!formData.password) next.password = 'Password is required';
+    else if (passwordStrength.score < 4)
+      next.password = 'Password does not meet all requirements';
 
-    // Email validation
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    // Password validation
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (passwordStrength.score < 4) {
-      newErrors.password = 'Password does not meet all requirements';
-    }
+    if (!formData.confirmPassword) next.confirmPassword = 'Please confirm your password';
+    else if (formData.password !== formData.confirmPassword)
+      next.confirmPassword = 'Passwords do not match';
 
-    // Confirm Password validation
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
+    if (!agreeToTerms) next.terms = 'You must agree to the Terms of Service and Privacy Policy';
 
-    // Terms agreement validation
-    if (!agreeToTerms) {
-      newErrors.terms = 'You must agree to the Terms of Service and Privacy Policy';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
-    
-    // Check password strength when password field changes
-    if (name === 'password') {
-      checkPasswordStrength(value);
-    }
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prevErrors => ({
-        ...prevErrors,
-        [name]: ''
-      }));
-    }
-  };
-
-  const handleFirebaseError = (error) => {
-    switch (error.code) {
-      case 'auth/email-already-in-use':
-        setErrors({ email: 'This email is already registered' });
-        break;
-      case 'auth/invalid-email':
-        setErrors({ email: 'Invalid email address' });
-        break;
-      case 'auth/operation-not-allowed':
-        setErrors({ submit: 'Email/password accounts are not enabled. Please contact support.' });
-        break;
-      case 'auth/weak-password':
-        setErrors({ password: 'Password is too weak' });
-        break;
-      default:
-        setErrors({ submit: 'Registration failed. Please try again.' });
-    }
-  };
-
-  const createUserDocument = async (user) => {
-    try {
-      await setDoc(doc(db, 'users', user.uid), {
-        email: user.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        createdAt: Timestamp.now(),
-        isProfileComplete: false,
-        emailVerified: false,
-        lastLogin: null,
-        accountStatus: 'pending_verification'
-      });
-    } catch (error) {
-      console.error("Error creating user document:", error);
-    }
+    setFormData((p) => ({ ...p, [name]: value }));
+    if (name === 'password') checkPasswordStrength(value);
+    if (errors[name]) setErrors((p) => ({ ...p, [name]: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (validateForm()) {
-      setIsLoading(true);
-      try {
-        // Create user with Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-        );
+    if (!validateForm()) return;
 
-        // Update user profile with full name
-        await updateProfile(userCredential.user, {
-          displayName: `${formData.firstName} ${formData.lastName}`
-        });
+    setIsLoading(true);
+    try {
+      const username =
+        formData.username.trim() || slugifyUsername(formData.firstName, formData.lastName, formData.email);
 
-        // Send email verification
-        await sendEmailVerification(userCredential.user);
+      const result = await signup({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        username: username.toLowerCase(),
+        password: formData.password,
+      });
 
-        // Store additional user data in Firestore
-        await createUserDocument(userCredential.user);
-
-        // Sign out the user immediately after account creation
-        await signOut(auth);
-
-        // Show success message
-        setRegistrationSuccess(true);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Registration error:', error);
-        handleFirebaseError(error);
-        setIsLoading(false);
+      if (result.success) {
+        setErrors({});
+        navigate('/Dashboard', { replace: true });
+        return;
       }
+
+      // Map server error to fields where possible
+      const code = result?.error?.code;
+      if (code === 'USER_EXISTS') {
+        setErrors({ email: 'An account with this email or username already exists' });
+      } else if (result.details && Array.isArray(result.details)) {
+        setErrors({ submit: result.details.join(' • ') });
+      } else {
+        setErrors({ submit: result.error || 'Registration failed' });
+      }
+    } catch (err) {
+      setErrors({ submit: err.message || 'Registration failed' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleGoToLogin = () => {
-    navigate('/login');
+  const handleSocialSignup = async (providerName) => {
+    setSocialLoading(providerName);
+    setErrors({});
+    try {
+      const result = await loginWithProvider(providerName);
+      if (result.success) {
+        navigate(result.redirectTo || '/Dashboard', { replace: true });
+        return;
+      }
+      setErrors({ submit: result.error || `${providerName} sign up failed` });
+    } catch (err) {
+      setErrors({ submit: err.message || `${providerName} sign up failed` });
+    } finally {
+      setSocialLoading('');
+    }
   };
 
-  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
+    visible: {
       opacity: 1,
-      transition: { 
-        duration: 0.5,
-        when: "beforeChildren",
-        staggerChildren: 0.1
-      }
+      transition: { duration: 0.5, when: 'beforeChildren', staggerChildren: 0.1 },
     },
-    exit: {
-      opacity: 0,
-      transition: { duration: 0.3 }
-    }
+    exit: { opacity: 0, transition: { duration: 0.3 } },
   };
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { duration: 0.5 }
-    }
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5 } },
   };
 
   const getPasswordStrengthLabel = () => {
@@ -242,7 +175,7 @@ const Signup = () => {
 
   return (
     <div className="signup-page">
-      <motion.div 
+      <motion.div
         className="signup-container"
         initial="hidden"
         animate="visible"
@@ -250,309 +183,267 @@ const Signup = () => {
         variants={containerVariants}
       >
         <div className="signup-card">
-          {registrationSuccess ? (
-            <motion.div 
-              className="success-message"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
+          <motion.div className="signup-form-container" variants={containerVariants}>
+            <motion.h2 variants={itemVariants} className="form-title">
+              Create Account
+            </motion.h2>
+            <motion.p variants={itemVariants} className="form-subtitle">
+              Join our tech community today
+            </motion.p>
+
+            <motion.form
+              onSubmit={handleSubmit}
+              variants={itemVariants}
+              autoComplete="off"
+              noValidate
             >
-              <div className="success-icon">
-                <FaCheck />
-              </div>
-              <h2>Account Created Successfully!</h2>
-              <p>A verification email has been sent to <strong>{formData.email}</strong></p>
-              <div className="verification-instructions">
-                <h3>Next Steps:</h3>
-                <ol>
-                  <li>Check your email inbox (and spam folder)</li>
-                  <li>Click the verification link in the email</li>
-                  <li>After verification, return to the login page to sign in</li>
-                </ol>
-                <div className="verification-note">
-                  <FaInfoCircle />
-                  <p>You must verify your email before you can log in to your account.</p>
+              <div className="name-fields">
+                <div className="form-group">
+                  <label htmlFor="firstName">First Name</label>
+                  <div className="input-with-icon">
+                    <input
+                      type="text"
+                      id="firstName"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      placeholder="Enter first name"
+                      className={errors.firstName ? 'error' : ''}
+                      disabled={isLoading}
+                      maxLength={40}
+                      autoComplete="off"
+                    />
+                  </div>
+                  {errors.firstName && <span className="error-message">{errors.firstName}</span>}
                 </div>
-                
-                <div className="help-section">
-                  <motion.button 
-                    className="instructions-button"
-                    onClick={() => setShowInstructions(!showInstructions)}
-                    whileHover={{ scale: 1.02 }}
+
+                <div className="form-group">
+                  <label htmlFor="lastName">Last Name</label>
+                  <div className="input-with-icon">
+                    <input
+                      type="text"
+                      id="lastName"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      placeholder="Enter last name"
+                      className={errors.lastName ? 'error' : ''}
+                      disabled={isLoading}
+                      maxLength={40}
+                      autoComplete="off"
+                    />
+                  </div>
+                  {errors.lastName && <span className="error-message">{errors.lastName}</span>}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email">Email Address</label>
+                <div className="input-with-icon">
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    className={errors.email ? 'error' : ''}
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+                </div>
+                {errors.email && <span className="error-message">{errors.email}</span>}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="username">Username (optional)</label>
+                <div className="input-with-icon">
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleChange}
+                    placeholder="Auto-generated if blank"
+                    className={errors.username ? 'error' : ''}
+                    disabled={isLoading}
+                    maxLength={30}
+                    autoComplete="off"
+                  />
+                </div>
+                {errors.username && <span className="error-message">{errors.username}</span>}
+                <span className="field-hint">3-30 chars; letters, numbers, _ or -</span>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <div className="input-with-icon">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Create password"
+                    className={errors.password ? 'error' : ''}
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex="-1"
                   >
-                    {showInstructions ? "Hide Verification Help" : "Need help with verification?"}
-                  </motion.button>
-                  
-                  {showInstructions && (
-                    <motion.div 
-                      className="verification-help"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                    >
-                      <p>If you don't see the verification email:</p>
-                      <ul>
-                        <li>Check your spam or junk folder</li>
-                        <li>Make sure you entered the correct email address</li>
-                        <li>Allow a few minutes for the email to arrive</li>
-                        <li>If you still don't see it, you can request a new verification email from the login page</li>
-                      </ul>
-                    </motion.div>
-                  )}
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
                 </div>
+                {errors.password && <span className="error-message">{errors.password}</span>}
+
+                {formData.password && (
+                  <div className="password-strength-container">
+                    <div className="password-strength-label">
+                      <span>Password Strength:</span>
+                      <span style={{ color: getPasswordStrengthColor() }}>
+                        {getPasswordStrengthLabel()}
+                      </span>
+                    </div>
+                    <div className="password-strength-meter">
+                      <div
+                        className="password-strength-progress"
+                        style={{
+                          width: `${(passwordStrength.score / 5) * 100}%`,
+                          backgroundColor: getPasswordStrengthColor(),
+                        }}
+                      ></div>
+                    </div>
+                    <div className="password-requirements">
+                      {[
+                        ['length', 'At least 8 characters'],
+                        ['uppercase', 'Uppercase letter'],
+                        ['lowercase', 'Lowercase letter'],
+                        ['number', 'Number'],
+                        ['special', 'Special character'],
+                      ].map(([key, label]) => (
+                        <div
+                          key={key}
+                          className={`requirement ${passwordStrength.requirements[key] ? 'met' : ''}`}
+                        >
+                          {passwordStrength.requirements[key] ? <FaCheck /> : <FaTimes />}
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <motion.button 
-                className="continue-button"
-                onClick={handleGoToLogin}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+
+              <div className="form-group">
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <div className="input-with-icon">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm password"
+                    className={errors.confirmPassword ? 'error' : ''}
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    tabIndex="-1"
+                  >
+                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <span className="error-message">{errors.confirmPassword}</span>
+                )}
+              </div>
+
+              <div className="form-group terms-container">
+                <label className="terms-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={agreeToTerms}
+                    onChange={(e) => {
+                      setAgreeToTerms(e.target.checked);
+                      if (errors.terms) setErrors((p) => ({ ...p, terms: '' }));
+                    }}
+                    disabled={isLoading}
+                  />
+                  <span>
+                    I agree to the{' '}
+                    <Link to="/terms" className="terms-link">
+                      Terms of Service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" className="terms-link">
+                      Privacy Policy
+                    </Link>
+                  </span>
+                </label>
+                {errors.terms && <span className="error-message">{errors.terms}</span>}
+              </div>
+
+              {errors.submit && (
+                <div className="error-message submit-error">{errors.submit}</div>
+              )}
+
+              <motion.button
+                type="submit"
+                className="submit-button"
+                disabled={isLoading}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
               >
-                Go to Login
+                {isLoading ? 'Creating Account...' : 'Create Account'}
               </motion.button>
-            </motion.div>
-          ) : (
-            <motion.div 
-              className="signup-form-container"
-              variants={containerVariants}
-            >
-              <motion.h2 variants={itemVariants} className="form-title">Create Account</motion.h2>
-              <motion.p variants={itemVariants} className="form-subtitle">
-                Join our tech community today
-              </motion.p>
-              
-              <motion.form 
-                onSubmit={handleSubmit} 
-                variants={itemVariants} 
-                autoComplete="off" 
-                noValidate
-              >
-                <div className="name-fields">
-                  <div className="form-group">
-                    <label htmlFor="firstName">First Name</label>
-                    <div className="input-with-icon">
-                      <input
-                        type="text"
-                        id="firstName"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleChange}
-                        placeholder="Enter first name"
-                        className={errors.firstName ? 'error' : ''}
-                        disabled={isLoading}
-                        maxLength={30}
-                        autoComplete="off"
-                      />
-                    </div>
-                    {errors.firstName && <span className="error-message">{errors.firstName}</span>}
-                  </div>
 
-                  <div className="form-group">
-                    <label htmlFor="lastName">Last Name</label>
-                    <div className="input-with-icon">
-                      <input
-                        type="text"
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleChange}
-                        placeholder="Enter last name"
-                        className={errors.lastName ? 'error' : ''}
-                        disabled={isLoading}
-                        maxLength={30}
-                        autoComplete="off"
-                      />
-                    </div>
-                    {errors.lastName && <span className="error-message">{errors.lastName}</span>}
-                  </div>
-                </div>
+              <div className="social-divider">
+                <span>or sign up with</span>
+              </div>
 
-                <div className="form-group">
-                  <label htmlFor="email">Email Address</label>
-                  <div className="input-with-icon">
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="Enter your email"
-                      className={errors.email ? 'error' : ''}
-                      disabled={isLoading}
-                      autoComplete="off"
-                    />
-                  </div>
-                  {errors.email && <span className="error-message">{errors.email}</span>}
-                  <span className="field-hint">You'll need to verify this email before logging in</span>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password">Password</label>
-                  <div className="input-with-icon">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="Create password"
-                      className={errors.password ? 'error' : ''}
-                      disabled={isLoading}
-                      autoComplete="off"
-                    />
-                    <button
-                      type="button"
-                      className="toggle-password"
-                      onClick={() => setShowPassword(!showPassword)}
-                      tabIndex="-1"
-                    >
-                      {showPassword ? <FaEyeSlash /> : <FaEye />}
-                    </button>
-                  </div>
-                  {errors.password && <span className="error-message">{errors.password}</span>}
-                  
-                  {formData.password && (
-                    <div className="password-strength-container">
-                      <div className="password-strength-label">
-                        <span>Password Strength:</span>
-                        <span style={{ color: getPasswordStrengthColor() }}>
-                          {getPasswordStrengthLabel()}
-                        </span>
-                      </div>
-                      <div className="password-strength-meter">
-                        <div 
-                          className="password-strength-progress"
-                          style={{ 
-                            width: `${(passwordStrength.score / 5) * 100}%`,
-                            backgroundColor: getPasswordStrengthColor()
-                          }}
-                        ></div>
-                      </div>
-                      <div className="password-requirements">
-                        <div className={`requirement ${passwordStrength.requirements.length ? 'met' : ''}`}>
-                          {passwordStrength.requirements.length ? <FaCheck /> : <FaTimes />}
-                          <span>At least 8 characters</span>
-                        </div>
-                        <div className={`requirement ${passwordStrength.requirements.uppercase ? 'met' : ''}`}>
-                          {passwordStrength.requirements.uppercase ? <FaCheck /> : <FaTimes />}
-                          <span>Uppercase letter</span>
-                        </div>
-                        <div className={`requirement ${passwordStrength.requirements.lowercase ? 'met' : ''}`}>
-                          {passwordStrength.requirements.lowercase ? <FaCheck /> : <FaTimes />}
-                          <span>Lowercase letter</span>
-                        </div>
-                        <div className={`requirement ${passwordStrength.requirements.number ? 'met' : ''}`}>
-                          {passwordStrength.requirements.number ? <FaCheck /> : <FaTimes />}
-                          <span>Number</span>
-                        </div>
-                        <div className={`requirement ${passwordStrength.requirements.special ? 'met' : ''}`}>
-                          {passwordStrength.requirements.special ? <FaCheck /> : <FaTimes />}
-                          <span>Special character</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="confirmPassword">Confirm Password</label>
-                  <div className="input-with-icon">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      placeholder="Confirm password"
-                      className={errors.confirmPassword ? 'error' : ''}
-                      disabled={isLoading}
-                      autoComplete="off"
-                    />
-                    <button
-                      type="button"
-                      className="toggle-password"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      tabIndex="-1"
-                    >
-                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-                    </button>
-                  </div>
-                  {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
-                </div>
-
-                {/* <div className="email-verification-notice"> */}
-                  {/* <FaInfoCircle /> */}
-                  {/* <p>You will need to verify your email address before you can log in to your account.</p> */}
-                {/* </div> */}
-
-                <div className="form-group terms-container">
-                  <label className="terms-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={agreeToTerms}
-                      onChange={(e) => {
-                        setAgreeToTerms(e.target.checked);
-                        if (errors.terms) {
-                          setErrors(prev => ({ ...prev, terms: '' }));
-                        }
-                      }}
-                      disabled={isLoading}
-                    />
-                    <span>
-                      I agree to the <Link to="/terms" className="terms-link">Terms of Service</Link> and <Link to="/privacy" className="terms-link">Privacy Policy</Link>
-                    </span>
-                  </label>
-                  {errors.terms && <span className="error-message">{errors.terms}</span>}
-                </div>
-
-                {errors.submit && <div className="error-message submit-error">{errors.submit}</div>}
-
-                <motion.button 
-                  type="submit" 
-                  className="submit-button"
-                  disabled={isLoading}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+              <div className="social-login">
+                <motion.button
+                  type="button"
+                  className="social-button google"
+                  onClick={() => handleSocialSignup('google')}
+                  disabled={isLoading || socialLoading !== ''}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                  <FaGoogle />
+                  {socialLoading === 'google' ? 'Connecting...' : 'Google'}
                 </motion.button>
+                <motion.button
+                  type="button"
+                  className="social-button github"
+                  onClick={() => handleSocialSignup('github')}
+                  disabled={isLoading || socialLoading !== ''}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaGithub />
+                  {socialLoading === 'github' ? 'Connecting...' : 'GitHub'}
+                </motion.button>
+              </div>
 
-                <div className="social-divider">
-                  <span>or sign up with</span>
-                </div>
-
-                <div className="social-login">
-                  <motion.button 
-                    type="button" 
-                    className="social-button google"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <img src="/images/google.svg" alt="Google" />
-                    Google
-                  </motion.button>
-                  <motion.button 
-                    type="button" 
-                    className="social-button github"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <img src="/images/github.svg" alt="GitHub" />
-                    GitHub
-                  </motion.button>
-                </div>
-
-                <p className="login-prompt">
-                  Already have an account?{' '}
-                  <motion.span
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Link to="/login" className="login-link">Sign in</Link>
-                  </motion.span>
-                </p>
-              </motion.form>
-            </motion.div>
-          )}
+              <p className="login-prompt">
+                Already have an account?{' '}
+                <motion.span whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link to="/login" className="login-link">
+                    Sign in
+                  </Link>
+                </motion.span>
+              </p>
+            </motion.form>
+          </motion.div>
         </div>
       </motion.div>
     </div>

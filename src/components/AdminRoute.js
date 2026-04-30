@@ -3,23 +3,23 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
-const ProtectedRoute = ({ children, roles }) => {
-  const { isAuthenticated, isInitialized, hasRole } = useAuth();
+const AdminRoute = ({ children, requireSuperAdmin = false }) => {
+  const { isAuthenticated, isInitialized, isAdmin, isSuperAdmin } = useAuth();
   const location = useLocation();
 
   if (!isInitialized) {
-    return <LoadingSpinner message="Checking authentication..." />;
+    return <LoadingSpinner message="Verifying admin access..." />;
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (roles && !hasRole(...roles)) {
+  if (requireSuperAdmin ? !isSuperAdmin : !isAdmin) {
     return <Navigate to="/Dashboard" replace />;
   }
 
   return children;
 };
 
-export default ProtectedRoute;
+export default AdminRoute;
