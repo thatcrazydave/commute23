@@ -6,16 +6,23 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Login from "./login";
 import Signup from "./signup";
 import Dashboard from "./Dashboard";
-import { FaGithub, FaTwitter, FaLinkedin, FaDiscord, FaCode, FaLaptopCode, FaUsers, FaRocket, 
+import { FaGithub, FaTwitter, FaLinkedin, FaDiscord, FaCode, FaLaptopCode, FaUsers, FaRocket,
          FaBars, FaTimes, FaSignOutAlt, FaUser, FaCog, FaBell, FaBookmark } from 'react-icons/fa';
 import Events from "./events";
 import EventDetail from "./eventDetail";
-import { auth } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 // import DashboardNetworkTest from './DashboardNetworkTest';
 
 // Navbar component with animations and auth state
-const Navbar = ({ isLoggedIn, userProfile, handleLogout }) => {
+const Navbar = () => {
+  const { isAuthenticated: isLoggedIn, displayName, photoURL, firstName, logout } = useAuth();
+  const navigate = useNavigate();
+  const userProfile = { firstName: firstName || displayName || 'User', photoURL };
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -784,67 +791,22 @@ const PlaceholderPage = ({ title }) => (
   </div>
 );
 
-// Main App component with auth state
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+// App shell that owns auth-dependent UI. Wrapped by AuthProvider in App().
+const AppShell = () => {
+  const { isInitialized } = useAuth();
 
-  // Check authentication state
-  useEffect(() => {
-    console.log("Checking auth state in App component");
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        console.log("User is logged in:", user.uid);
-        setIsLoggedIn(true);
-        
-        // You could fetch user profile data here if needed
-        // For now, we'll just use basic info from auth
-        setUserProfile({
-          firstName: user.displayName?.split(' ')[0] || 'User',
-          lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
-          email: user.email,
-          photoURL: user.photoURL || '/images/default-avatar.png'
-        });
-      } else {
-        console.log("No user logged in");
-        setIsLoggedIn(false);
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
-    
-    return () => unsubscribe();
-  }, []);
-
-  // Handle logout
-  const handleLogout = async () => {
-    try {
-      console.log("Logging out user");
-      await signOut(auth);
-      console.log("User logged out successfully");
-      // Navigate to home page is handled by the auth state change
-    } catch (error) {
-      console.error("Error logging out:", error);
-    }
-  };
-
-  if (loading) {
+  if (!isInitialized) {
     return <LoadingSpinner />;
   }
 
   return (
-    <Router>
+    <>
       <ScrollToTop />
       <div className="App">
         <Routes>
           <Route path="*" element={
             <>
-              <Navbar 
-                isLoggedIn={isLoggedIn} 
-                userProfile={userProfile} 
-                handleLogout={handleLogout} 
-              />
+              <Navbar />
         <main className="main-content">
           <AnimatePresence mode="wait">
             <Routes>
@@ -874,9 +836,11 @@ function App() {
                 </PageTransition>
               } />
                     <Route path="/Dashboard" element={
-                      <PageTransition>
-                        <Dashboard />
-                      </PageTransition>
+                      <ProtectedRoute>
+                        <PageTransition>
+                          <Dashboard />
+                        </PageTransition>
+                      </ProtectedRoute>
                     } />
                     <Route path="/settings" element={
                       <PageTransition>
@@ -1003,6 +967,17 @@ function App() {
           } />
         </Routes>
       </div>
+    </>
+  );
+};
+
+// Top-level App: wraps the shell in Router + AuthProvider so useAuth works everywhere.
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </Router>
   );
 }
