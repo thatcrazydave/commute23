@@ -1,11 +1,7 @@
-// Firebase usage in this app:
-//   - PRIMARY: OAuth identity for Google / GitHub sign-in. The Firebase ID token
-//     is exchanged for a backend-issued JWT at POST /auth/firebase-login.
-//     All sessions are owned by our Express backend.
-//   - LEGACY (being phased out): Firestore for posts/connections/events and
-//     Cloud Storage for uploads. These will migrate to MongoDB + the backend
-//     API in a follow-up phase. Do NOT add new Firestore reads/writes — use
-//     the API service in src/services/api.js instead.
+// Firebase is used ONLY for OAuth identity (Google / GitHub).
+// All user data and sessions live in our own backend (Express + MongoDB + JWT).
+// The Firestore / Storage imports that existed here have been removed — all data
+// now flows through the /api/* REST endpoints.
 
 import { initializeApp } from 'firebase/app';
 import {
@@ -15,12 +11,6 @@ import {
   browserSessionPersistence,
   setPersistence,
 } from 'firebase/auth';
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-} from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -30,17 +20,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 const auth = getAuth(app);
+
+// Tab-scoped Firebase auth state — cloned tabs do not inherit our JWT session.
 setPersistence(auth, browserSessionPersistence).catch(() => {});
 
 const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
 
-// LEGACY — see comment at top of file
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-});
-const storage = getStorage(app);
-
-export { app, auth, googleProvider, githubProvider, db, storage };
+export { app, auth, googleProvider, githubProvider };

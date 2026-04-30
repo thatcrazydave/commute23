@@ -1,25 +1,26 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
-  FaHome, 
-  FaBell, 
-  FaCalendarAlt, 
-  FaUserFriends, 
-  FaBookmark, 
-  FaCog, 
-  FaSignOutAlt 
+import {
+  FaHome,
+  FaBell,
+  FaCalendarAlt,
+  FaUserFriends,
+  FaBookmark,
+  FaCog,
+  FaSignOutAlt
 } from 'react-icons/fa';
-import { auth } from './firebase';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import './DashboardSidebar.css';
 
 const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
     try {
-      await auth.signOut();
-      navigate('/login');
+      await logout();
+      navigate('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -27,11 +28,11 @@ const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) =
 
   const sidebarItems = [
     { id: 'feed', label: 'Feed', icon: <FaHome /> },
-    { 
-      id: 'notifications', 
-      label: 'Notifications', 
-      icon: <FaBell />, 
-      badge: notificationsCount > 0 ? notificationsCount : null 
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: <FaBell />,
+      badge: notificationsCount > 0 ? notificationsCount : null
     },
     { id: 'events', label: 'Events', icon: <FaCalendarAlt /> },
     { id: 'connections', label: 'Connections', icon: <FaUserFriends /> },
@@ -40,7 +41,7 @@ const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) =
   ];
 
   return (
-    <motion.div 
+    <motion.div
       className="dashboard-sidebar"
       initial={{ x: -50, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
@@ -49,12 +50,12 @@ const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) =
       <div className="sidebar-logo">
         <h2>Commute</h2>
       </div>
-      
+
       <nav className="sidebar-nav">
         <ul>
           {sidebarItems.map(item => (
             <li key={item.id}>
-              <button 
+              <button
                 className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(item.id)}
               >
@@ -66,7 +67,7 @@ const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) =
           ))}
         </ul>
       </nav>
-      
+
       <div className="sidebar-footer">
         <button className="logout-button" onClick={handleLogout}>
           <FaSignOutAlt />

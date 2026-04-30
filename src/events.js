@@ -1,454 +1,101 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, getDocs, query, where, orderBy, limit, Timestamp, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { db, auth, storage } from './firebase';
 import { useNavigate } from 'react-router-dom';
-import { FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaFilter, FaClock, FaHeart, FaRegHeart,
-         FaPlus, FaTimes, FaCamera, FaUsers, FaTicketAlt, FaShare, FaCalendarPlus, FaExclamationTriangle, FaTh, FaList, FaSort, FaChevronDown } from 'react-icons/fa';
-import { onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import {
+  FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaFilter, FaHeart, FaRegHeart,
+  FaPlus, FaTimes, FaCamera, FaUsers, FaTicketAlt,
+  FaExclamationTriangle, FaTh, FaList, FaSort, FaChevronDown, // eslint-disable-line no-unused-vars
+} from 'react-icons/fa';
+import API from './services/api';
+import { useAuth } from './contexts/AuthContext';
 import './events.css';
 
-// Create Event Modal Component
+// ─── Create Event Modal ────────────────────────────────────────────────────────
 const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
-  const [eventData, setEventData] = useState({
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    location: '',
-    category: 'tech',
-    capacity: 50,
-    price: 0,
-    isVirtual: false,
-    registrationLink: '',
-    imageUrl: ''
-  });
+  const [form, setForm] = useState({ title:'', description:'', date:'', time:'', location:'', category:'tech', capacity:50, price:0, isVirtual:false, registrationLink:'' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  
-  const fileInputRef = useRef(null);
+  const fileRef = useRef(null);
 
-  const handleChange = (e) => {
+  const handleChange = e => {
     const { name, value, type, checked } = e.target;
-    setEventData({
-      ...eventData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = e => {
     const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-    
+    if (!form.title || !form.description || !form.date || !form.time || !form.location) { setError('Please fill in all required fields'); return; }
+    const dt = new Date(`${form.date}T${form.time}`);
+    if (isNaN(dt.getTime())) { setError('Invalid date or time'); return; }
+    setIsSubmitting(true); setError(null);
     try {
-      // Validate form
-      if (!eventData.title || !eventData.description || !eventData.date || !eventData.time || !eventData.location) {
-        throw new Error('Please fill in all required fields');
-      }
-      
-      // Combine date and time into a timestamp
-      const dateTimeString = `${eventData.date}T${eventData.time}`;
-      const eventDateTime = new Date(dateTimeString);
-      
-      if (isNaN(eventDateTime.getTime())) {
-        throw new Error('Invalid date or time format');
-      }
-      
-      // Upload image if provided
-      let imageUrl = eventData.imageUrl;
-      
+      let imageUrl = '';
       if (imageFile) {
-        const storageRef = ref(storage, `events/${Date.now()}_${imageFile.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, imageFile);
-        
-        await new Promise((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setUploadProgress(progress);
-            },
-            (error) => {
-              reject(error);
-            },
-            async () => {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              imageUrl = downloadURL;
-              resolve();
-            }
-          );
-        });
+        const fd = new FormData(); fd.append('file', imageFile);
+        const { data: up } = await API.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, onUploadProgress: ev => { if (ev.total) setUploadProgress(Math.round((ev.loaded/ev.total)*100)); } });
+        imageUrl = up.data.url;
       }
-      
-      // Get current user
-      const user = auth.currentUser;
-      
-      if (!user) {
-        throw new Error('You must be logged in to create an event');
-      }
-      
-      // Create event document
-      const eventRef = await addDoc(collection(db, 'events'), {
-        title: eventData.title,
-        description: eventData.description,
-        date: Timestamp.fromDate(eventDateTime),
-        location: eventData.location,
-        category: eventData.category,
-        capacity: parseInt(eventData.capacity),
-        price: parseFloat(eventData.price),
-        isVirtual: eventData.isVirtual,
-        registrationLink: eventData.registrationLink,
-        imageUrl: imageUrl,
-        createdBy: user.uid,
-        createdAt: Timestamp.now(),
-        attendees: [],
-        interested: []
-      });
-      
-      // Call the callback with the new event
-      onEventCreated({
-        id: eventRef.id,
-        title: eventData.title,
-        description: eventData.description,
-        date: Timestamp.fromDate(eventDateTime),
-        location: eventData.location,
-        category: eventData.category,
-        capacity: parseInt(eventData.capacity),
-        price: parseFloat(eventData.price),
-        isVirtual: eventData.isVirtual,
-        registrationLink: eventData.registrationLink,
-        imageUrl: imageUrl,
-        createdBy: user.uid,
-        createdAt: Timestamp.now(),
-        attendees: [],
-        interested: []
-      });
-      
-      onClose();
-    } catch (err) {
-      console.error('Error creating event:', err);
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+      const { data } = await API.post('/events', { ...form, date: dt.toISOString(), capacity: parseInt(form.capacity), price: parseFloat(form.price), imageUrl });
+      if (data.success) { onEventCreated(data.data.event); onClose(); }
+      else throw new Error(data.error?.message || 'Failed to create event');
+    } catch (err) { setError(err.response?.data?.error?.message || err.message); }
+    finally { setIsSubmitting(false); }
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div 
-          className="modal-overlay"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{ 
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000
-          }}
-        >
-          <motion.div 
-            className="create-event-modal"
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '10px',
-              width: '90%',
-              maxWidth: '800px',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-              padding: '20px',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h2>Create New Event</h2>
-              <button 
-                className="close-button" 
-                onClick={onClose}
-                style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.2rem',
-                  cursor: 'pointer',
-                  color: '#666'
-                }}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            
-            {error && (
-              <div className="error-message" style={{
-                backgroundColor: '#ffecec',
-                color: '#e74c3c',
-                padding: '10px 15px',
-                borderRadius: '5px',
-                marginBottom: '15px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <FaExclamationTriangle /> {error}
-              </div>
-            )}
-            
+        <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
+          <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', padding:'20px', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
+            <h2>Create New Event</h2>
+            <button onClick={onClose} style={{ position:'absolute', top:15, right:15, background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer' }}><FaTimes /></button>
+            {error && <div style={{ backgroundColor:'#ffecec', color:'#e74c3c', padding:'10px', borderRadius:'5px', marginBottom:'15px' }}><FaExclamationTriangle /> {error}</div>}
             <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label htmlFor="title">Event Title *</label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  value={eventData.title}
-                  onChange={handleChange}
-                  placeholder="Enter event title"
-                  required
-                />
-              </div>
-              
+              <div className="form-group"><label>Title *</label><input name="title" value={form.title} onChange={handleChange} placeholder="Event title" required /></div>
               <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="date">Date *</label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={eventData.date}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="time">Time *</label>
-                  <input
-                    type="time"
-                    id="time"
-                    name="time"
-                    value={eventData.time}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
+                <div className="form-group"><label>Date *</label><input type="date" name="date" value={form.date} onChange={handleChange} required /></div>
+                <div className="form-group"><label>Time *</label><input type="time" name="time" value={form.time} onChange={handleChange} required /></div>
               </div>
-              
-              <div className="form-group">
-                <label htmlFor="location">Location *</label>
-                <input
-                  type="text"
-                  id="location"
-                  name="location"
-                  value={eventData.location}
-                  onChange={handleChange}
-                  placeholder="Enter event location"
-                  required
-                />
-              </div>
-              
+              <div className="form-group"><label>Location *</label><input name="location" value={form.location} onChange={handleChange} placeholder="Location" required /></div>
               <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="category">Category</label>
-                  <select
-                    id="category"
-                    name="category"
-                    value={eventData.category}
-                    onChange={handleChange}
-                  >
-                    <option value="conference">Conference</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="networking">Networking</option>
-                    <option value="social">Social</option>
-                    <option value="tech">Tech</option>
-                    <option value="business">Business</option>
-                    <option value="arts">Arts & Culture</option>
+                <div className="form-group"><label>Category</label>
+                  <select name="category" value={form.category} onChange={handleChange}>
+                    {['conference','workshop','networking','social','tech','business','arts'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
                   </select>
                 </div>
-                
-                <div className="form-group">
-                  <label htmlFor="capacity">Capacity</label>
-                  <input
-                    type="number"
-                    id="capacity"
-                    name="capacity"
-                    value={eventData.capacity}
-                    onChange={handleChange}
-                    min="1"
-                  />
-                </div>
+                <div className="form-group"><label>Capacity</label><input type="number" name="capacity" value={form.capacity} onChange={handleChange} min="1" /></div>
               </div>
-              
               <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="price">Price ($)</label>
-                  <input
-                    type="number"
-                    id="price"
-                    name="price"
-                    value={eventData.price}
-                    onChange={handleChange}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                
-                <div className="form-group checkbox-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="isVirtual"
-                      checked={eventData.isVirtual}
-                      onChange={handleChange}
-                    />
-                    Virtual Event
-                  </label>
-                </div>
+                <div className="form-group"><label>Price ($)</label><input type="number" name="price" value={form.price} onChange={handleChange} min="0" step="0.01" /></div>
+                <div className="form-group checkbox-group"><label><input type="checkbox" name="isVirtual" checked={form.isVirtual} onChange={handleChange} /> Virtual Event</label></div>
               </div>
-              
-              {eventData.isVirtual && (
-                <div className="form-group">
-                  <label htmlFor="registrationLink">Registration Link</label>
-                  <input
-                    type="url"
-                    id="registrationLink"
-                    name="registrationLink"
-                    value={eventData.registrationLink}
-                    onChange={handleChange}
-                    placeholder="Enter registration or meeting link"
-                  />
-                </div>
-              )}
-              
-              <div className="form-group">
-                <label htmlFor="description">Description *</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={eventData.description}
-                  onChange={handleChange}
-                  placeholder="Describe your event"
-                  rows="4"
-                  required
-                ></textarea>
-              </div>
-              
+              {form.isVirtual && <div className="form-group"><label>Registration Link</label><input type="url" name="registrationLink" value={form.registrationLink} onChange={handleChange} placeholder="Meeting link" /></div>}
+              <div className="form-group"><label>Description *</label><textarea name="description" value={form.description} onChange={handleChange} rows="4" required placeholder="Describe your event" /></div>
               <div className="form-group">
                 <label>Event Image</label>
                 <div className="image-upload-container">
-                  {imagePreview ? (
-                    <div className="image-preview">
-                      <img src={imagePreview} alt="Event preview" />
-                      <button 
-                        type="button" 
-                        className="remove-image-button"
-                        onClick={() => {
-                          setImageFile(null);
-                          setImagePreview(null);
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = '';
-                          }
-                        }}
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  ) : (
-                    <div 
-                      className="upload-placeholder"
-                      onClick={() => fileInputRef.current.click()}
-                    >
-                      <FaCamera />
-                      <p>Click to upload image</p>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImageChange}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                  />
+                  {imagePreview
+                    ? <div className="image-preview"><img src={imagePreview} alt="Preview" /><button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}><FaTimes /></button></div>
+                    : <div className="upload-placeholder" onClick={() => fileRef.current?.click()}><FaCamera /><p>Click to upload</p></div>}
+                  <input type="file" ref={fileRef} onChange={handleImageChange} accept="image/*" style={{ display:'none' }} />
                 </div>
-                {uploadProgress > 0 && uploadProgress < 100 && (
-                  <div className="upload-progress">
-                    <div 
-                      className="progress-bar" 
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                    <span>{Math.round(uploadProgress)}%</span>
-                  </div>
-                )}
+                {uploadProgress > 0 && uploadProgress < 100 && <div className="upload-progress"><div className="progress-bar" style={{ width:`${uploadProgress}%` }} /><span>{uploadProgress}%</span></div>}
               </div>
-              
-              <div className="form-actions" style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginTop: '20px',
-                gap: '10px'
-              }}>
-                <button 
-                  type="button" 
-                  className="cancel-button"
-                  onClick={onClose}
-                  disabled={isSubmitting}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '5px',
-                    border: '1px solid #ddd',
-                    backgroundColor: '#f8f8f8',
-                    cursor: 'pointer',
-                    flex: '1'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="submit-button"
-                  disabled={isSubmitting}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '5px',
-                    border: 'none',
-                    backgroundColor: '#4a90e2',
-                    color: 'white',
-                    cursor: 'pointer',
-                    flex: '1'
-                  }}
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Event'}
-                </button>
+              <div style={{ display:'flex', gap:'10px', marginTop:'20px' }}>
+                <button type="button" onClick={onClose} disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', border:'1px solid #ddd', cursor:'pointer' }}>Cancel</button>
+                <button type="submit" disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', backgroundColor:'#4a90e2', color:'white', border:'none', cursor:'pointer' }}>{isSubmitting ? 'Creating...' : 'Create Event'}</button>
               </div>
             </form>
           </motion.div>
@@ -458,1018 +105,233 @@ const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
   );
 };
 
-// Event Details Modal Component
-const EventDetailsModal = ({ event, isOpen, onClose, onRegister, onToggleFavorite, isFavorite, isRegistered }) => {
-  if (!event) return null;
-  
-  const formatDate = (timestamp) => {
-    const date = timestamp.toDate();
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-  
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: event.title,
-        text: `Check out this event: ${event.title}`,
-        url: window.location.href
-      })
-      .catch(err => console.error('Error sharing:', err));
-    } else {
-      // Fallback for browsers that don't support the Web Share API
-      navigator.clipboard.writeText(window.location.href)
-        .then(() => alert('Link copied to clipboard!'))
-        .catch(err => console.error('Error copying link:', err));
-    }
-  };
-  
-  const addToCalendar = () => {
-    const eventDate = event.date.toDate();
-    const endDate = new Date(eventDate);
-    endDate.setHours(endDate.getHours() + 2); // Assuming 2-hour event
-    
-    const icsContent = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'BEGIN:VEVENT',
-      `SUMMARY:${event.title}`,
-      `DTSTART:${formatICSDate(eventDate)}`,
-      `DTEND:${formatICSDate(endDate)}`,
-      `LOCATION:${event.location}`,
-      `DESCRIPTION:${event.description.replace(/\n/g, '\\n')}`,
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].join('\r\n');
-    
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${event.title.replace(/\s+/g, '_')}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  
-  const formatICSDate = (date) => {
-    return date.toISOString().replace(/-|:|\.\d+/g, '').slice(0, 15) + 'Z';
-  };
-  
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div 
-          className="modal-overlay"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{ 
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000
-          }}
-          onClick={onClose}
-        >
-          <motion.div 
-            className="event-details-modal"
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '10px',
-              width: '90%',
-              maxWidth: '800px',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-              position: 'relative'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <button className="close-button" onClick={onClose}>
-              <FaTimes />
-            </button>
-            
-            <div className="event-image-container">
-              <img 
-                src={event.imageUrl || 'https://via.placeholder.com/800x400?text=Event'} 
-                alt={event.title} 
-                className="event-detail-image"
-              />
-              <div className="event-category-badge">{event.category}</div>
-            </div>
-            
-            <div className="event-detail-content">
-              <h2 className="event-detail-title">{event.title}</h2>
-              
-              <div className="event-detail-meta">
-                <div className="detail-item">
-                  <FaCalendarAlt className="detail-icon" />
-                  <span>{formatDate(event.date)}</span>
-                </div>
-                
-                <div className="detail-item">
-                  <FaMapMarkerAlt className="detail-icon" />
-                  <span>{event.location}</span>
-                </div>
-                
-                <div className="detail-item">
-                  <FaUsers className="detail-icon" />
-                  <span>{event.attendees?.length || 0} / {event.capacity || 'Unlimited'} attending</span>
-                </div>
-                
-                {event.price > 0 ? (
-                  <div className="detail-item">
-                    <FaTicketAlt className="detail-icon" />
-                    <span>${event.price.toFixed(2)}</span>
-                  </div>
-                ) : (
-                  <div className="detail-item free-badge">
-                    <FaTicketAlt className="detail-icon" />
-                    <span>Free</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="event-description">
-                <h3>About this event</h3>
-                <p>{event.description}</p>
-              </div>
-              
-              <div className="event-actions">
-                <button 
-                  className={`register-button ${isRegistered ? 'registered' : ''}`}
-                  onClick={onRegister}
-                  disabled={isRegistered}
-                >
-                  {isRegistered ? 'Registered' : 'Register Now'}
-                </button>
-                
-                <button 
-                  className={`favorite-button ${isFavorite ? 'favorited' : ''}`}
-                  onClick={onToggleFavorite}
-                >
-                  {isFavorite ? <FaHeart /> : <FaRegHeart />}
-                  {isFavorite ? 'Saved' : 'Save'}
-                </button>
-                
-                <button className="share-button" onClick={handleShare}>
-                  <FaShare /> Share
-                </button>
-                
-                <button className="calendar-button" onClick={addToCalendar}>
-                  <FaCalendarPlus /> Add to Calendar
-                </button>
-              </div>
-              
-              {event.isVirtual && event.registrationLink && (
-                <div className="virtual-event-info">
-                  <h3>Virtual Event</h3>
-                  <p>This is an online event. After registration, you will receive a link to join.</p>
-                  {isRegistered && (
-                    <a 
-                      href={event.registrationLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="join-link"
-                    >
-                      Join Event
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
-
-// No Events Component
-const NoEventsFound = ({ isFiltered, resetFilters, createNewEvent }) => {
-  return (
-    <div className="no-events-container">
-      <div className="no-events-content">
-        <img 
-          src="/images/no-events.svg" 
-          alt="No events found" 
-          className="no-events-image"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = "https://via.placeholder.com/300?text=No+Events";
-          }}
-        />
-        
-        <h2>No Events Found</h2>
-        
-        {isFiltered ? (
-          <>
-            <p>We couldn't find any events that match your filters.</p>
-            <div className="no-events-actions">
-              <button className="primary-button" onClick={resetFilters}>
-                Clear Filters
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p>There are no upcoming events scheduled at this time.</p>
-            <p>Check back later or create your own event!</p>
-            <div className="no-events-actions">
-              <button className="primary-button" onClick={createNewEvent}>
-                Create an Event
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+const NoEventsFound = ({ isFiltered, resetFilters, createNewEvent }) => (
+  <div className="no-events-container">
+    <div className="no-events-content">
+      <h2>No Events Found</h2>
+      {isFiltered
+        ? <><p>No events match your filters.</p><button className="primary-button" onClick={resetFilters}>Clear Filters</button></>
+        : <><p>No upcoming events yet.</p><button className="primary-button" onClick={createNewEvent}>Create an Event</button></>}
     </div>
-  );
-};
+  </div>
+);
 
-// Main Events Component
+// ─── Main Events ───────────────────────────────────────────────────────────────
 const Events = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isInitialized, isAdmin, isModerator } = useAuth();
+
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterOptions, setFilterOptions] = useState({
-    category: 'all',
-    timeFrame: 'all',
-    location: 'all',
-    price: 'all',
-    attendance: 'all'
-  });
+  const [filterOptions, setFilterOptions] = useState({ category:'all', timeFrame:'all', location:'all', price:'all', attendance:'all' });
   const [showFilters, setShowFilters] = useState(false);
-  const [favorites, setFavorites] = useState([]);
-  const [registeredEvents, setRegisteredEvents] = useState([]);
-  const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [sortBy, setSortBy] = useState('date'); // 'date', 'popularity', 'price'
+  const [viewMode, setViewMode] = useState('grid');
+  const [sortBy, setSortBy] = useState('date');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [myEventsOnly, setMyEventsOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [hasEvents, setHasEvents] = useState(true);
-  const eventsPerPage = 12;
 
-  // Check authentication status
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        
-        // Fetch user profile to check admin status
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUserProfile(userData);
-            setIsAdmin(userData.isAdmin || false);
-          }
-        } catch (err) {
-          console.error('Error fetching user profile:', err);
-        }
-      } else {
-        // Redirect to login if not authenticated
-        navigate('/login', { 
-          state: { 
-            message: 'Please log in to view events', 
-            type: 'info' 
-          } 
-        });
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [navigate]);
+    if (isInitialized && !isAuthenticated) navigate('/login', { state: { message: 'Please log in to view events', type: 'info' } });
+  }, [isInitialized, isAuthenticated, navigate]);
 
-  // Fetch events from Firestore
   useEffect(() => {
-    const fetchEvents = async () => {
-      if (!user) return;
-      
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const now = Timestamp.now();
-        
-        // Create a query to get upcoming events
-        let eventsQuery = query(
-          collection(db, 'events'),
-          where('date', '>=', now),
-          orderBy('date', 'asc'),
-          limit(eventsPerPage * page)
-        );
-        
-        // If viewing only user's events
-        if (myEventsOnly) {
-          eventsQuery = query(
-            collection(db, 'events'),
-            where('createdBy', '==', user.uid),
-            orderBy('date', 'asc'),
-            limit(eventsPerPage * page)
-          );
-        }
-        
-        const querySnapshot = await getDocs(eventsQuery);
-        const eventsData = [];
-        
-        querySnapshot.forEach((doc) => {
-          eventsData.push({
-            id: doc.id,
-            ...doc.data(),
-          });
-        });
-        
-        // Check if there are any events at all
-        setHasEvents(eventsData.length > 0);
-        
-        // Check if there are more events to load
-        setHasMore(eventsData.length === eventsPerPage * page);
-        
-        // Sort events based on sortBy
-        let sortedEvents = [...eventsData];
-        
-        if (sortBy === 'date') {
-          // Already sorted by date in the query
-        } else if (sortBy === 'popularity') {
-          sortedEvents.sort((a, b) => (b.attendees?.length || 0) - (a.attendees?.length || 0));
-        } else if (sortBy === 'price') {
-          sortedEvents.sort((a, b) => (a.price || 0) - (b.price || 0));
-        }
-        
-        setEvents(sortedEvents);
-        
-        // Fetch user's favorite events
-        const userFavoritesQuery = query(
-          collection(db, 'users', user.uid, 'favoriteEvents')
-        );
-        
-        const favoritesSnapshot = await getDocs(userFavoritesQuery);
-        const favoritesData = [];
-        
-        favoritesSnapshot.forEach((doc) => {
-          favoritesData.push(doc.id);
-        });
-        
-        setFavorites(favoritesData);
-        
-        // Fetch user's registered events
-        const userRegistrationsQuery = query(
-          collection(db, 'users', user.uid, 'registeredEvents')
-        );
-        
-        const registrationsSnapshot = await getDocs(userRegistrationsQuery);
-        const registrationsData = [];
-        
-        registrationsSnapshot.forEach((doc) => {
-          registrationsData.push(doc.id);
-        });
-        
-        setRegisteredEvents(registrationsData);
-      } catch (err) {
-        console.error('Error fetching events:', err);
-        setError('Failed to load events. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
+    if (!isAuthenticated) return;
     fetchEvents();
-  }, [user, page, sortBy, myEventsOnly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, page, sortBy, myEventsOnly]);
 
-  // Filter events based on search term and filter options
+  const fetchEvents = async () => {
+    setIsLoading(true); setError(null);
+    try {
+      const params = new URLSearchParams({ page, limit: 12 });
+      if (myEventsOnly) params.set('mine', 'true');
+      const { data } = await API.get(`/events?${params}`);
+      if (data.success) {
+        let fetched = data.data.events;
+        if (sortBy === 'popularity') fetched = [...fetched].sort((a,b) => (b.attendeesCount||0)-(a.attendeesCount||0));
+        else if (sortBy === 'price') fetched = [...fetched].sort((a,b) => (a.price||0)-(b.price||0));
+        setEvents(prev => page === 1 ? fetched : [...prev, ...fetched]);
+        setHasMore(data.data.hasMore);
+      }
+    } catch (err) { setError('Failed to load events. Please try again later.'); }
+    finally { setIsLoading(false); }
+  };
+
   useEffect(() => {
-    if (events.length > 0) {
-      let filtered = [...events];
-      
-      // Apply search filter
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filtered = filtered.filter(event => 
-          event.title?.toLowerCase().includes(term) || 
-          event.description?.toLowerCase().includes(term) ||
-          event.location?.toLowerCase().includes(term)
-        );
-      }
-      
-      // Apply category filter
-      if (filterOptions.category !== 'all') {
-        filtered = filtered.filter(event => 
-          event.category === filterOptions.category
-        );
-      }
-      
-      // Apply time frame filter
-      if (filterOptions.timeFrame !== 'all') {
-        const now = new Date();
-        
-        if (filterOptions.timeFrame === 'today') {
-          const endOfDay = new Date(now);
-          endOfDay.setHours(23, 59, 59, 999);
-          
-          filtered = filtered.filter(event => {
-            const eventDate = event.date.toDate();
-            return eventDate >= now && eventDate <= endOfDay;
-          });
-        } else if (filterOptions.timeFrame === 'week') {
-          const endOfWeek = new Date(now);
-          endOfWeek.setDate(now.getDate() + 7);
-          
-          filtered = filtered.filter(event => {
-            const eventDate = event.date.toDate();
-            return eventDate >= now && eventDate <= endOfWeek;
-          });
-        } else if (filterOptions.timeFrame === 'month') {
-          const endOfMonth = new Date(now);
-          endOfMonth.setMonth(now.getMonth() + 1);
-          
-          filtered = filtered.filter(event => {
-            const eventDate = event.date.toDate();
-            return eventDate >= now && eventDate <= endOfMonth;
-          });
-        }
-      }
-      
-      // Apply location filter
-      if (filterOptions.location !== 'all') {
-        if (filterOptions.location === 'virtual') {
-          filtered = filtered.filter(event => event.isVirtual);
-        } else if (filterOptions.location === 'in-person') {
-          filtered = filtered.filter(event => !event.isVirtual);
-        } else {
-          filtered = filtered.filter(event => 
-            event.location?.includes(filterOptions.location)
-          );
-        }
-      }
-      
-      // Apply price filter
-      if (filterOptions.price !== 'all') {
-        if (filterOptions.price === 'free') {
-          filtered = filtered.filter(event => !event.price || event.price === 0);
-        } else if (filterOptions.price === 'paid') {
-          filtered = filtered.filter(event => event.price > 0);
-        }
-      }
-      
-      // Apply attendance filter
-      if (filterOptions.attendance !== 'all') {
-        if (filterOptions.attendance === 'registered') {
-          filtered = filtered.filter(event => registeredEvents.includes(event.id));
-        } else if (filterOptions.attendance === 'saved') {
-          filtered = filtered.filter(event => favorites.includes(event.id));
-        }
-      }
-      
-      setFilteredEvents(filtered);
-    } else {
-      setFilteredEvents([]);
+    let f = [...events];
+    if (searchTerm) { const t = searchTerm.toLowerCase(); f = f.filter(e => e.title?.toLowerCase().includes(t) || e.description?.toLowerCase().includes(t) || e.location?.toLowerCase().includes(t)); }
+    if (filterOptions.category !== 'all') f = f.filter(e => e.category === filterOptions.category);
+    if (filterOptions.timeFrame !== 'all') {
+      const now = new Date();
+      if (filterOptions.timeFrame === 'today') { const eod = new Date(now); eod.setHours(23,59,59,999); f = f.filter(e => { const d = new Date(e.date); return d>=now&&d<=eod; }); }
+      else if (filterOptions.timeFrame === 'week') { const eow = new Date(now); eow.setDate(now.getDate()+7); f = f.filter(e => { const d = new Date(e.date); return d>=now&&d<=eow; }); }
+      else if (filterOptions.timeFrame === 'month') { const eom = new Date(now); eom.setMonth(now.getMonth()+1); f = f.filter(e => { const d = new Date(e.date); return d>=now&&d<=eom; }); }
     }
-  }, [events, searchTerm, filterOptions, favorites, registeredEvents]);
+    if (filterOptions.location === 'virtual') f = f.filter(e => e.isVirtual);
+    else if (filterOptions.location === 'in-person') f = f.filter(e => !e.isVirtual);
+    if (filterOptions.price === 'free') f = f.filter(e => !e.price || e.price === 0);
+    else if (filterOptions.price === 'paid') f = f.filter(e => e.price > 0);
+    if (filterOptions.attendance === 'registered') f = f.filter(e => e.isAttending);
+    else if (filterOptions.attendance === 'saved') f = f.filter(e => e.isFavorite);
+    setFilteredEvents(f);
+  }, [events, searchTerm, filterOptions]);
 
-  // Toggle favorite status for an event
-  const toggleFavorite = async (eventId) => {
-    if (!user) return;
-    
+  const patchEvent = (eventId, patch) => {
+    const fn = e => (e._id||e.id) === eventId ? { ...e, ...patch } : e;
+    setEvents(prev => prev.map(fn));
+    if (selectedEvent && (selectedEvent._id||selectedEvent.id) === eventId) setSelectedEvent(prev => ({ ...prev, ...patch }));
+  };
+
+  const toggleFavorite = async eventId => {
     try {
-      // Update local state immediately for responsive UI
-      const newFavorites = [...favorites];
-      const index = newFavorites.indexOf(eventId);
-      
-      if (index > -1) {
-        newFavorites.splice(index, 1);
-        await deleteDoc(doc(db, 'users', user.uid, 'favoriteEvents', eventId));
-      } else {
-        newFavorites.push(eventId);
-        await setDoc(doc(db, 'users', user.uid, 'favoriteEvents', eventId), {
-          addedAt: Timestamp.now()
-        });
-      }
-      
-      setFavorites(newFavorites);
-    } catch (err) {
-      console.error('Error toggling favorite:', err);
-    }
+      const { data } = await API.post(`/events/${eventId}/favorite`);
+      if (data.success) patchEvent(eventId, { isFavorite: data.data.isFavorite });
+    } catch (err) { console.error('toggleFavorite:', err); }
   };
 
-  // Register for an event
-  const registerForEvent = async (eventId) => {
-    if (!user) return;
-    
+  const registerForEvent = async eventId => {
     try {
-      // Check if already registered
-      if (registeredEvents.includes(eventId)) {
-        return;
-      }
-      
-      // Get the event to check capacity
-      const eventRef = doc(db, 'events', eventId);
-      const eventDoc = await getDoc(eventRef);
-      
-      if (!eventDoc.exists()) {
-        throw new Error('Event not found');
-      }
-      
-      const eventData = eventDoc.data();
-      
-      // Check if event is at capacity
-      if (eventData.capacity && eventData.attendees && eventData.attendees.length >= eventData.capacity) {
-        alert('This event is at full capacity');
-        return;
-      }
-      
-      // Add user to event attendees
-      const updatedAttendees = [...(eventData.attendees || []), user.uid];
-      await updateDoc(eventRef, {
-        attendees: updatedAttendees
-      });
-      
-      // Add event to user's registered events
-      await setDoc(doc(db, 'users', user.uid, 'registeredEvents', eventId), {
-        registeredAt: Timestamp.now()
-      });
-      
-      // Update local state
-      setRegisteredEvents([...registeredEvents, eventId]);
-      
-      // Show success message
-      alert('You have successfully registered for this event!');
+      const { data } = await API.post(`/events/${eventId}/attend`);
+      if (data.success) patchEvent(eventId, { isAttending: data.data.isAttending, attendeesCount: data.data.attendeesCount });
     } catch (err) {
-      console.error('Error registering for event:', err);
-      alert('Failed to register for event. Please try again.');
+      const msg = err.response?.data?.error?.message;
+      if (msg) alert(msg);
     }
   };
 
-  // Handle event creation
-  const handleEventCreated = (newEvent) => {
-    setEvents([newEvent, ...events]);
-    setShowCreateModal(false);
+  const formatDate = val => {
+    if (!val) return 'TBD';
+    return new Intl.DateTimeFormat('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(new Date(val));
   };
 
-  // Format date for display
-  const formatDate = (timestamp) => {
-    const date = timestamp.toDate();
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
+  const resetFilters = () => { setFilterOptions({ category:'all', timeFrame:'all', location:'all', price:'all', attendance:'all' }); setSearchTerm(''); };
 
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-  };
+  const containerVariants = { hidden:{ opacity:0 }, visible:{ opacity:1, transition:{ duration:0.5, when:'beforeChildren', staggerChildren:0.1 } } };
+  const itemVariants = { hidden:{ y:20, opacity:0 }, visible:{ y:0, opacity:1, transition:{ duration:0.3 } } };
 
-  // Handle filter changes
-  const handleFilterChange = (filterType, value) => {
-    setFilterOptions({
-      ...filterOptions,
-      [filterType]: value
-    });
-  };
-
-  // View event details
-  const viewEventDetails = (event) => {
-    setSelectedEvent(event);
-    setShowEventDetails(true);
-  };
-
-  // Load more events
-  const loadMoreEvents = () => {
-    setPage(page + 1);
-  };
-
-  // Reset filters
-  const resetFilters = () => {
-    setFilterOptions({
-      category: 'all',
-      timeFrame: 'all',
-      location: 'all',
-      price: 'all',
-      attendance: 'all'
-    });
-    setSearchTerm('');
-  };
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        duration: 0.5,
-        when: "beforeChildren",
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { duration: 0.3 }
-    }
-  };
-
-  // Loading spinner component
-  if (isLoading && page === 1) {
-    return (
-      <div className="loading-container">
-        <motion.div 
-          className="loading-spinner"
-          animate={{ rotate: 360 }}
-          transition={{ 
-            duration: 1.5, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
-        >
-          <div className="spinner-inner"></div>
-        </motion.div>
-        <p>Loading events...</p>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error && page === 1) {
-    return (
-      <div className="error-container">
-        <h2>Oops!</h2>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Try Again</button>
-      </div>
-    );
-  }
+  if (isLoading && page === 1) return <div className="loading-container"><motion.div className="loading-spinner" animate={{ rotate:360 }} transition={{ duration:1.5, repeat:Infinity, ease:'linear' }}><div className="spinner-inner"/></motion.div><p>Loading events...</p></div>;
+  if (error && page === 1) return <div className="error-container"><h2>Oops!</h2><p>{error}</p><button onClick={() => window.location.reload()}>Try Again</button></div>;
 
   return (
     <div className="events-page">
-      <motion.div 
-        className="events-container"
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
+      <motion.div className="events-container" initial="hidden" animate="visible" variants={containerVariants}>
         <motion.div className="events-header" variants={itemVariants}>
-          <div className="header-content">
-            <h1>Upcoming Events</h1>
-            <p>Discover and join exciting events in your community</p>
-          </div>
-          
+          <div className="header-content"><h1>Upcoming Events</h1><p>Discover and join exciting events in your community</p></div>
           <div className="header-actions">
-            {(isAdmin || userProfile?.canCreateEvents) && (
-              <button 
-                className="create-event-button"
-                onClick={() => setShowCreateModal(true)}
-              >
-                <FaPlus /> Create Event
-              </button>
-            )}
-            
+            {(isAdmin||isModerator) && <button className="create-event-button" onClick={() => setShowCreateModal(true)}><FaPlus /> Create Event</button>}
             <div className="view-toggle">
-              <button 
-                className={`view-button ${viewMode === 'grid' ? 'active' : ''}`}
-                onClick={() => setViewMode('grid')}
-                aria-label="Grid view"
-              >
-                <FaTh />
-              </button>
-              <button 
-                className={`view-button ${viewMode === 'list' ? 'active' : ''}`}
-                onClick={() => setViewMode('list')}
-                aria-label="List view"
-              >
-                <FaList />
-              </button>
+              <button className={`view-button ${viewMode==='grid'?'active':''}`} onClick={() => setViewMode('grid')} aria-label="Grid"><FaTh /></button>
+              <button className={`view-button ${viewMode==='list'?'active':''}`} onClick={() => setViewMode('list')} aria-label="List"><FaList /></button>
             </div>
           </div>
         </motion.div>
 
         <motion.div className="search-filter-container" variants={itemVariants}>
-          <div className="search-bar">
-            <FaSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search events..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
-          </div>
-          
+          <div className="search-bar"><FaSearch className="search-icon"/><input type="text" placeholder="Search events..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
           <div className="filter-actions">
             <div className="sort-dropdown">
-              <button className="sort-button">
-                <FaSort /> Sort: {sortBy === 'date' ? 'Date' : sortBy === 'popularity' ? 'Popularity' : 'Price'}
-                <FaChevronDown className="dropdown-icon" />
-              </button>
-              <div className="sort-options">
-                <button 
-                  className={sortBy === 'date' ? 'active' : ''}
-                  onClick={() => setSortBy('date')}
-                >
-                  Date
-                </button>
-                <button 
-                  className={sortBy === 'popularity' ? 'active' : ''}
-                  onClick={() => setSortBy('popularity')}
-                >
-                  Popularity
-                </button>
-                <button 
-                  className={sortBy === 'price' ? 'active' : ''}
-                  onClick={() => setSortBy('price')}
-                >
-                  Price
-                </button>
-              </div>
+              <button className="sort-button"><FaSort/> Sort: {sortBy.charAt(0).toUpperCase()+sortBy.slice(1)}<FaChevronDown className="dropdown-icon"/></button>
+              <div className="sort-options">{['date','popularity','price'].map(s => <button key={s} className={sortBy===s?'active':''} onClick={() => { setSortBy(s); setPage(1); }}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>
             </div>
-            
-            <button 
-              className={`filter-toggle-button ${showFilters ? 'active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <FaFilter /> {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </button>
-            
-            <button 
-              className={`my-events-toggle ${myEventsOnly ? 'active' : ''}`}
-              onClick={() => setMyEventsOnly(!myEventsOnly)}
-            >
-              {myEventsOnly ? 'All Events' : 'My Events'}
-            </button>
+            <button className={`filter-toggle-button ${showFilters?'active':''}`} onClick={() => setShowFilters(s=>!s)}><FaFilter/> {showFilters?'Hide Filters':'Show Filters'}</button>
+            <button className={`my-events-toggle ${myEventsOnly?'active':''}`} onClick={() => { setMyEventsOnly(s=>!s); setPage(1); }}>{myEventsOnly?'All Events':'My Events'}</button>
           </div>
         </motion.div>
 
         <AnimatePresence>
           {showFilters && (
-            <motion.div 
-              className="filters-container"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="filter-group">
-                <label>Category</label>
-                <select 
-                  value={filterOptions.category}
-                  onChange={(e) => handleFilterChange('category', e.target.value)}
-                >
-                  <option value="all">All Categories</option>
-                  <option value="conference">Conference</option>
-                  <option value="workshop">Workshop</option>
-                  <option value="networking">Networking</option>
-                  <option value="social">Social</option>
-                  <option value="tech">Tech</option>
-                  <option value="business">Business</option>
-                  <option value="arts">Arts & Culture</option>
-                </select>
-              </div>
-              
-              <div className="filter-group">
-                <label>Time Frame</label>
-                <select 
-                  value={filterOptions.timeFrame}
-                  onChange={(e) => handleFilterChange('timeFrame', e.target.value)}
-                >
-                  <option value="all">All Time</option>
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                </select>
-              </div>
-              
-              <div className="filter-group">
-                <label>Location</label>
-                <select 
-                  value={filterOptions.location}
-                  onChange={(e) => handleFilterChange('location', e.target.value)}
-                >
-                  <option value="all">All Locations</option>
-                  <option value="virtual">Virtual Events</option>
-                  <option value="in-person">In-Person Events</option>
-                  <option value="New York">New York</option>
-                  <option value="San Francisco">San Francisco</option>
-                  <option value="London">London</option>
-                </select>
-              </div>
-              
-              <div className="filter-group">
-                <label>Price</label>
-                <select 
-                  value={filterOptions.price}
-                  onChange={(e) => handleFilterChange('price', e.target.value)}
-                >
-                  <option value="all">All Prices</option>
-                  <option value="free">Free</option>
-                  <option value="paid">Paid</option>
-                </select>
-              </div>
-              
-              <div className="filter-group">
-                <label>Attendance</label>
-                <select 
-                  value={filterOptions.attendance}
-                  onChange={(e) => handleFilterChange('attendance', e.target.value)}
-                >
-                  <option value="all">All Events</option>
-                  <option value="registered">Registered</option>
-                  <option value="saved">Saved</option>
-                </select>
-              </div>
-              
-              <button 
-                className="reset-filters-button"
-                onClick={resetFilters}
-              >
-                Reset Filters
-              </button>
+            <motion.div className="filters-container" initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.3 }}>
+              {[
+                { label:'Category', key:'category', opts:[['all','All Categories'],['conference','Conference'],['workshop','Workshop'],['networking','Networking'],['social','Social'],['tech','Tech'],['business','Business'],['arts','Arts & Culture']] },
+                { label:'Time Frame', key:'timeFrame', opts:[['all','All Time'],['today','Today'],['week','This Week'],['month','This Month']] },
+                { label:'Location', key:'location', opts:[['all','All Locations'],['virtual','Virtual'],['in-person','In-Person']] },
+                { label:'Price', key:'price', opts:[['all','All Prices'],['free','Free'],['paid','Paid']] },
+                { label:'Attendance', key:'attendance', opts:[['all','All Events'],['registered','Registered'],['saved','Saved']] },
+              ].map(({ label, key, opts }) => (
+                <div className="filter-group" key={key}>
+                  <label>{label}</label>
+                  <select value={filterOptions[key]} onChange={e => setFilterOptions(f => ({ ...f, [key]: e.target.value }))}>
+                    {opts.map(([v,t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+              ))}
+              <button className="reset-filters-button" onClick={resetFilters}>Reset Filters</button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {!isLoading && (
+        {!isLoading && filteredEvents.length === 0 && (
+          <NoEventsFound isFiltered={events.length > 0 && (searchTerm || Object.values(filterOptions).some(v => v!=='all'))} resetFilters={resetFilters} createNewEvent={() => setShowCreateModal(true)} />
+        )}
+
+        {filteredEvents.length > 0 && (
           <>
-            {filteredEvents.length === 0 && (
-              <NoEventsFound 
-                isFiltered={hasEvents && (
-                  searchTerm || 
-                  filterOptions.category !== 'all' || 
-                  filterOptions.timeFrame !== 'all' || 
-                  filterOptions.location !== 'all' || 
-                  filterOptions.price !== 'all' || 
-                  filterOptions.attendance !== 'all'
-                )}
-                resetFilters={resetFilters}
-                createNewEvent={() => setShowCreateModal(true)}
-              />
-            )}
-            
-            {filteredEvents.length > 0 && (
-              <>
-                <motion.div 
-                  className={`events-${viewMode}`} 
-                  variants={containerVariants}
-                >
-                  {filteredEvents.map((event) => (
-                    <motion.div 
-                      key={event.id} 
-                      className={`event-card ${viewMode}`}
-                      variants={itemVariants}
-                      whileHover={{ y: -5, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}
-                      onClick={() => viewEventDetails(event)}
-                    >
-                      <div className="event-image-container">
-                        <img 
-                          src={event.imageUrl || 'https://via.placeholder.com/300x150?text=Event'} 
-                          alt={event.title} 
-                          className="event-image"
-                        />
-                        <button 
-                          className="favorite-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(event.id);
-                          }}
-                        >
-                          {favorites.includes(event.id) ? 
-                            <FaHeart className="favorite-icon active" /> : 
-                            <FaRegHeart className="favorite-icon" />
-                          }
-                        </button>
-                        {registeredEvents.includes(event.id) && (
-                          <div className="registered-badge">Registered</div>
-                        )}
-                      </div>
-                      
-                      <div className="event-content">
-                        <div className="event-category">{event.category}</div>
-                        <h3 className="event-title">{event.title}</h3>
-                        
-                        <div className="event-details">
-                          <div className="event-detail">
-                            <FaCalendarAlt className="detail-icon" />
-                            <span>{formatDate(event.date)}</span>
-                          </div>
-                          
-                          <div className="event-detail">
-                            <FaMapMarkerAlt className="detail-icon" />
-                            <span>{event.location}</span>
-                          </div>
-                          
-                          {viewMode === 'list' && (
-                            <>
-                              <div className="event-detail">
-                                <FaClock className="detail-icon" />
-                                <span>{event.duration || '2 hours'}</span>
-                              </div>
-                              
-                              <div className="event-detail">
-                                <FaUsers className="detail-icon" />
-                                <span>{event.attendees?.length || 0} attending</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        
-                        {viewMode === 'list' && (
-                          <p className="event-description">
-                            {event.description.length > 150 
-                              ? `${event.description.substring(0, 150)}...` 
-                              : event.description
-                            }
-                          </p>
-                        )}
-                        
-                        {viewMode === 'list' && (
-                          <div className="list-view-actions">
-                            <button 
-                              className={`register-button ${registeredEvents.includes(event.id) ? 'registered' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                registerForEvent(event.id);
-                              }}
-                              disabled={registeredEvents.includes(event.id)}
-                            >
-                              {registeredEvents.includes(event.id) ? 'Registered' : 'Register'}
-                            </button>
-                            
-                            <div className="price-tag">
-                              {event.price > 0 ? `$${event.price.toFixed(2)}` : 'Free'}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-                
-                {hasMore && (
-                  <div className="load-more-container">
-                    <button 
-                      className="load-more-button"
-                      onClick={loadMoreEvents}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Loading...' : 'Load More Events'}
+            <motion.div className={`events-${viewMode}`} variants={containerVariants}>
+              {filteredEvents.map(event => (
+                <motion.div key={event._id||event.id} className={`event-card ${viewMode}`} variants={itemVariants} whileHover={{ y:-5, boxShadow:'0 10px 20px rgba(0,0,0,0.1)' }} onClick={() => { setSelectedEvent(event); setShowEventDetails(true); }}>
+                  <div className="event-image-container">
+                    <img src={event.imageUrl||'https://via.placeholder.com/300x150?text=Event'} alt={event.title} className="event-image"/>
+                    <button className="favorite-button" onClick={e => { e.stopPropagation(); toggleFavorite(event._id||event.id); }}>
+                      {event.isFavorite ? <FaHeart className="favorite-icon active"/> : <FaRegHeart className="favorite-icon"/>}
                     </button>
+                    {event.isAttending && <div className="registered-badge">Registered</div>}
                   </div>
-                )}
-              </>
-            )}
+                  <div className="event-content">
+                    <div className="event-category">{event.category}</div>
+                    <h3 className="event-title">{event.title}</h3>
+                    <div className="event-details">
+                      <div className="event-detail"><FaCalendarAlt className="detail-icon"/><span>{formatDate(event.date)}</span></div>
+                      <div className="event-detail"><FaMapMarkerAlt className="detail-icon"/><span>{event.location}</span></div>
+                      {viewMode === 'list' && <div className="event-detail"><FaUsers className="detail-icon"/><span>{event.attendeesCount||0} attending</span></div>}
+                    </div>
+                    {viewMode === 'list' && event.description && <p className="event-description">{event.description.substring(0,150)}{event.description.length>150?'...':''}</p>}
+                    {viewMode === 'list' && (
+                      <div className="list-view-actions">
+                        <button className={`register-button ${event.isAttending?'registered':''}`} onClick={e => { e.stopPropagation(); registerForEvent(event._id||event.id); }} disabled={event.isAttending}>{event.isAttending?'Registered':'Register'}</button>
+                        <div className="price-tag">{event.price>0?`$${event.price.toFixed(2)}`:'Free'}</div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+            {hasMore && <div className="load-more-container"><button className="load-more-button" onClick={() => setPage(p=>p+1)} disabled={isLoading}>{isLoading?'Loading...':'Load More Events'}</button></div>}
           </>
         )}
       </motion.div>
-      
-      {/* Create Event Modal */}
-      <CreateEventModal 
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onEventCreated={handleEventCreated}
-      />
-      
-      {/* Event Details Modal */}
-      <EventDetailsModal 
-        event={selectedEvent}
-        isOpen={showEventDetails}
-        onClose={() => setShowEventDetails(false)}
-        onRegister={() => selectedEvent && registerForEvent(selectedEvent.id)}
-        onToggleFavorite={() => selectedEvent && toggleFavorite(selectedEvent.id)}
-        isFavorite={selectedEvent ? favorites.includes(selectedEvent.id) : false}
-        isRegistered={selectedEvent ? registeredEvents.includes(selectedEvent.id) : false}
-      />
+
+      <CreateEventModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onEventCreated={e => { setEvents(prev => [e,...prev]); setShowCreateModal(false); }}/>
+
+      <AnimatePresence>
+        {showEventDetails && selectedEvent && (
+          <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={() => setShowEventDetails(false)}>
+            <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShowEventDetails(false)} style={{ position:'absolute', top:10, right:10, background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer', zIndex:1 }}><FaTimes/></button>
+              <img src={selectedEvent.imageUrl||'https://via.placeholder.com/800x400?text=Event'} alt={selectedEvent.title} style={{ width:'100%', height:'250px', objectFit:'cover', borderRadius:'10px 10px 0 0' }}/>
+              <div style={{ padding:'20px' }}>
+                <span style={{ backgroundColor:'#eee', borderRadius:'4px', padding:'2px 8px', fontSize:'0.8rem' }}>{selectedEvent.category}</span>
+                <h2 style={{ margin:'10px 0' }}>{selectedEvent.title}</h2>
+                <p><FaCalendarAlt style={{ marginRight:6 }}/>{formatDate(selectedEvent.date)}</p>
+                <p><FaMapMarkerAlt style={{ marginRight:6 }}/>{selectedEvent.location}</p>
+                <p><FaUsers style={{ marginRight:6 }}/>{selectedEvent.attendeesCount||0} attending</p>
+                <p><FaTicketAlt style={{ marginRight:6 }}/>{selectedEvent.price>0?`$${selectedEvent.price.toFixed(2)}`:'Free'}</p>
+                <p style={{ marginTop:'10px' }}>{selectedEvent.description}</p>
+                <div style={{ display:'flex', gap:'10px', marginTop:'15px' }}>
+                  <button className={`register-button ${selectedEvent.isAttending?'registered':''}`} onClick={() => registerForEvent(selectedEvent._id||selectedEvent.id)} disabled={selectedEvent.isAttending}>{selectedEvent.isAttending?'Registered':'Register Now'}</button>
+                  <button className={`favorite-button ${selectedEvent.isFavorite?'favorited':''}`} onClick={() => toggleFavorite(selectedEvent._id||selectedEvent.id)}>{selectedEvent.isFavorite?<FaHeart/>:<FaRegHeart/>} {selectedEvent.isFavorite?'Saved':'Save'}</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
