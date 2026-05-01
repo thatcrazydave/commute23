@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FaUserPlus, FaCheck, FaTimes, FaEllipsisH, FaUserCircle } from 'react-icons/fa';
 import API from './services/api';
-import './ConnectionCard.css';
+import './css/ConnectionCard.css';
 
 const ConnectionCard = ({ connection, isOffline, onRemoved }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -15,7 +15,7 @@
 // import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
 // import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // import { db, storage } from '../firebase';
-// import './CreatePostModal.css';
+// import './css/CreatePostModal.css';
 
 // const CreatePostModal = ({ onClose, onPostCreated, currentUser, userProfile }) => {
 //   const [content, setContent] = useState('');

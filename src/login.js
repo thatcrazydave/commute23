@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaEye, FaEyeSlash, FaArrowLeft, FaGoogle, FaGithub } from 'react-icons/fa';
 import { useAuth } from './contexts/AuthContext';
 import API from './services/api';
-import './login.css';
+import './css/login.css';
 
 const Login = () => {
   const navigate = useNavigate();

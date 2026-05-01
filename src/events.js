@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fa';
 import API from './services/api';
 import { useAuth } from './contexts/AuthContext';
-import './events.css';
+import './css/events.css';
 
 // ─── Create Event Modal ────────────────────────────────────────────────────────
 const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {

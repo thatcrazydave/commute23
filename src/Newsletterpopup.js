@@ -1,5 +1,5 @@
 import React from 'react';
-import './Newsletterpopup.css';
+import './css/Newsletterpopup.css';
 
 
 function NewsletterPopup({ csrfToken, handleClosePopup }) {

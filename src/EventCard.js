@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaUsers, FaCheck, FaPlus } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import API from './services/api';
-import './EventCard.css';
+import './css/EventCard.css';
 
 const EventCard = ({ event: initialEvent, currentUserId, compact = false }) => {
   const [event, setEvent] = useState(initialEvent);

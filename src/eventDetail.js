@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaArrowLeft, FaHeart, FaRegHeart, FaShare, FaTicketAlt, FaUserFriends } from 'react-icons/fa';
 import API from './services/api';
 import { useAuth } from './contexts/AuthContext';
-import './eventDetail.css';
+import './css/eventDetail.css';
 
 const EventDetail = () => {
   const { eventId } = useParams();

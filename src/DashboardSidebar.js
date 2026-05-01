@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import './DashboardSidebar.css';
+import './css/DashboardSidebar.css';
 
 const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) => {
   const navigate = useNavigate();

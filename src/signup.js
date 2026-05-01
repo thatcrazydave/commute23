@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaEye, FaEyeSlash, FaCheck, FaTimes, FaGoogle, FaGithub } from 'react-icons/fa';
 import { useAuth } from './contexts/AuthContext';
-import './signup.css';
+import './css/signup.css';
 
 const slugifyUsername = (firstName, lastName, email) => {
   const base = (firstName || email?.split('@')[0] || 'user')

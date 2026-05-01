@@ -20,7 +20,7 @@ import {
   FaUserFriends,
   FaCalendarAlt
 } from 'react-icons/fa';
-import './Navbar.css';
+import '../css/Navbar.css';
 
 const Navbar = () => {
   const navigate = useNavigate();

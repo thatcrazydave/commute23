@@ -14,7 +14,7 @@ import {
   FaUserPlus,
   FaCommentAlt
 } from 'react-icons/fa';
-import './UserProfileCard.css';
+import './css/UserProfileCard.css';
 
 const UserProfileCard = ({ user, currentUserId, onEditProfile, onConnect, onMessage }) => {
   if (!user) return null;

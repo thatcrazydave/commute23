@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from "react-router";
-import './App.css';
+import './css/App.css';
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import { AnimatePresence, motion } from 'framer-motion';
 import Login from "./login";

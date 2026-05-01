@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaTimes, FaImage, FaSmile, FaInfoCircle, FaCloudUploadAlt } from 'react-icons/fa';
 import API from './services/api';
-import './CreatePostModal.css';
+import './css/CreatePostModal.css';
 
 const EmojiFallback = () => <div className="emoji-fallback"><p>Emoji picker unavailable</p></div>;
 

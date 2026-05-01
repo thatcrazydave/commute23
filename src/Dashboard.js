@@ -20,7 +20,7 @@ import CreatePostModal from './CreatePostModal';
 import LoadingSpinner from './components/LoadingSpinner';
 import API from './services/api';
 import { useAuth } from './contexts/AuthContext';
-import './Dashboard.css';
+import './css/Dashboard.css';
 
 // Error boundary
 class ErrorBoundary extends React.Component {
