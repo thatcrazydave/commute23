@@ -14,6 +14,7 @@ import {
   FaUserPlus,
   FaCommentAlt
 } from 'react-icons/fa';
+import Avatar from './components/Avatar';
 import './css/UserProfileCard.css';
 
 const UserProfileCard = ({ user, currentUserId, onEditProfile, onConnect, onMessage }) => {
@@ -68,9 +69,9 @@ const UserProfileCard = ({ user, currentUserId, onEditProfile, onConnect, onMess
         </div>
         
         <div className="profile-avatar-container">
-          <img 
-            src={user.photoURL || '/images/default-avatar.png'} 
-            alt={user.firstName || 'User'} 
+          <Avatar 
+            user={user} 
+            size={100} 
             className="profile-avatar"
           />
           {isCurrentUser && (

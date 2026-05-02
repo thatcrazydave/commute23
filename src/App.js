@@ -12,6 +12,7 @@ import Events from "./events";
 import EventDetail from "./eventDetail";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import Avatar from './components/Avatar';
 // import DashboardNetworkTest from './DashboardNetworkTest';
 
 // Navbar component with animations and auth state
@@ -124,11 +125,9 @@ const Navbar = () => {
                     <div 
                       className="user-avatar"
                       onClick={toggleDropdown}
+                      style={{ cursor: 'pointer' }}
                     >
-                      <img 
-                        src={userProfile?.photoURL || '/images/default-avatar.png'} 
-                        alt={userProfile?.firstName || 'User'} 
-                      />
+                      <Avatar user={userProfile} size={36} />
                     </div>
                     
                     <div className="user-dropdown">

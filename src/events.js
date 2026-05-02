@@ -6,6 +6,7 @@ import {
   FaPlus, FaTimes, FaCamera, FaUsers, FaTicketAlt,
   FaExclamationTriangle, FaTh, FaList, FaSort, FaChevronDown, // eslint-disable-line no-unused-vars
 } from 'react-icons/fa';
+import { createPortal } from 'react-dom';
 import API from './services/api';
 import { useAuth } from './contexts/AuthContext';
 import './css/events.css';
@@ -56,7 +57,7 @@ const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen && createPortal(
         <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
           <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', padding:'20px', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
             <h2>Create New Event</h2>
@@ -99,7 +100,8 @@ const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
               </div>
             </form>
           </motion.div>
-        </motion.div>
+        </motion.div>,
+        document.body
       )}
     </AnimatePresence>
   );
@@ -221,7 +223,7 @@ const Events = () => {
 
   return (
     <div className="events-page">
-      <motion.div className="events-container" initial="hidden" animate="visible" variants={containerVariants}>
+      <motion.div className="events-page-container" initial="hidden" animate="visible" variants={containerVariants}>
         <motion.div className="events-header" variants={itemVariants}>
           <div className="header-content"><h1>Upcoming Events</h1><p>Discover and join exciting events in your community</p></div>
           <div className="header-actions">
@@ -310,7 +312,7 @@ const Events = () => {
       <CreateEventModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onEventCreated={e => { setEvents(prev => [e,...prev]); setShowCreateModal(false); }}/>
 
       <AnimatePresence>
-        {showEventDetails && selectedEvent && (
+        {showEventDetails && selectedEvent && createPortal(
           <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={() => setShowEventDetails(false)}>
             <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
               <button onClick={() => setShowEventDetails(false)} style={{ position:'absolute', top:10, right:10, background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer', zIndex:1 }}><FaTimes/></button>
@@ -329,7 +331,8 @@ const Events = () => {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
     </div>

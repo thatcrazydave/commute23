@@ -5,7 +5,7 @@
   padding: 20px;
 }
 
-.events-container {
+.events-page-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
@@ -363,7 +363,7 @@
 }
 
 @media (max-width: 480px) {
-  .events-container {
+  .events-page-container {
     padding: 10px;
   }
   
