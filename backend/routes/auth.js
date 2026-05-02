@@ -436,14 +436,13 @@ router.post('/forgot-password', validateForgotPassword, async (req, res) => {
     user.passwordResetCodeExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
 
-    // TODO: hook up real email service. For MVP, return token in dev only.
-    const devReset = process.env.NODE_ENV !== 'production' ? { resetToken, resetCode } : undefined;
-    Logger.info('Password reset issued', { userId: user._id });
+    // TODO: hook up real email service — send resetToken/resetCode via email
+    // Dev: check server logs for token (Logger.info below), never return it in the response
+    Logger.info('Password reset issued', { userId: user._id, devToken: process.env.NODE_ENV !== 'production' ? resetToken : '[redacted]' });
 
     return res.json({
       success: true,
       message: 'If an account with that email exists, a reset link has been sent.',
-      devReset,
     });
   } catch (err) {
     Logger.error('Forgot password error', { error: err.message });

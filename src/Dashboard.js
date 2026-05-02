@@ -325,12 +325,17 @@ const Dashboard = () => {
   const handlePostComment = async (postId, commentText) => {
     if (!userProfile) return;
     const optimistic = {
+      _id: `temp-${Date.now()}`,
       authorId: authUser?._id || authUser?.id,
-      authorName: `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim(),
-      authorPhoto: userProfile.photoURL || '/images/default-avatar.png',
       content: commentText,
       createdAt: new Date(),
-      _id: `temp-${Date.now()}`,
+      author: {
+        _id: authUser?._id || authUser?.id,
+        firstName: userProfile.firstName || '',
+        lastName: userProfile.lastName || '',
+        photoURL: userProfile.photoURL || '/images/default-avatar.png',
+        username: userProfile.username || '',
+      },
     };
 
     const addComment = (list) => list.map(p =>

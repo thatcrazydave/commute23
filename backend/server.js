@@ -8,7 +8,6 @@ const { initFirebaseAdmin } = require('./config/firebaseAdmin');
 const { authLimiter, generalLimiter, passwordResetLimiter } = require('./middleware/rateLimiter');
 const Logger = require('./utils/logger');
 
-const path = require('path');
 const authRoutes = require('./routes/auth');
 const postsRoutes = require('./routes/posts');
 const connectionsRoutes = require('./routes/connections');
@@ -49,9 +48,6 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Auth routes — strict limiter
 app.use('/api/auth/forgot-password', passwordResetLimiter);
