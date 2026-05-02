@@ -5,9 +5,9 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
 
-  const authorName = post.author.firstName && post.author.lastName 
+  const authorName = post.author?.firstName && post.author?.lastName
     ? `${post.author.firstName} ${post.author.lastName}`
-    : currentUser.displayName || 'Anonymous';
+    : post.author?.username || currentUser?.displayName || 'Anonymous';
 
   const handleSubmitComment = (e) => {
     e.preventDefault();
@@ -22,7 +22,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
       <div className="post-header">
         <div className="post-author">
           <img 
-            src={post.author.photoURL || '/images/default-avatar.png'} 
+            src={post.author?.photoURL || '/images/default-avatar.png'}
             alt={authorName} 
           />
           <div>
@@ -43,8 +43,14 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
         {post.content}
       </div>
 
-      {post.imageUrl && (
-        <img src={post.imageUrl} alt="Post content" className="post-image" />
+      {post.media && post.media.length > 0 && (
+        <div className={`post-media ${post.media.length > 1 ? 'post-media-carousel' : ''}`}>
+          {post.media.map((m, i) => (
+            m.mediaType === 'video'
+              ? <video key={i} src={m.cdnUrl} controls className="post-image" />
+              : <img key={i} src={m.cdnUrl} alt="Post content" className="post-image" />
+          ))}
+        </div>
       )}
 
       <div className="post-actions">
@@ -86,16 +92,20 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
           </form>
 
           {post.comments?.map((comment, index) => (
-            <div key={index} className="comment">
-              <img 
-                src={comment.userPhoto || '/images/default-avatar.png'} 
-                alt={comment.userName} 
+            <div key={comment._id || index} className="comment">
+              <img
+                src={comment.author?.photoURL || comment.authorPhoto || '/images/default-avatar.png'}
+                alt={comment.author?.firstName || comment.authorName || 'User'}
               />
               <div className="comment-content">
-                <h5>{comment.userName}</h5>
+                <h5>
+                  {comment.author?.firstName
+                    ? `${comment.author.firstName} ${comment.author.lastName || ''}`.trim()
+                    : comment.authorName || 'User'}
+                </h5>
                 <p>{comment.content}</p>
                 <div className="comment-actions">
-                  <span>{new Date(comment.timestamp).toLocaleDateString()}</span>
+                  <span>{new Date(comment.createdAt || comment.timestamp).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>

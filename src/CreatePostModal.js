@@ -1,8 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FaTimes, FaImage, FaSmile, FaInfoCircle, FaCloudUploadAlt } from 'react-icons/fa';
+import { FaTimes, FaImage, FaSmile, FaInfoCircle, FaCloudUploadAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import API from './services/api';
 import './css/CreatePostModal.css';
+
+const MAX_FILES = 10;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
+const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'];
 
 const EmojiFallback = () => <div className="emoji-fallback"><p>Emoji picker unavailable</p></div>;
 
@@ -24,18 +29,17 @@ const EmojiPickerComponent = ({ onEmojiClick }) => {
 
 const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
   const [content, setContent] = useState('');
-  const [mediaFile, setMediaFile] = useState(null);
-  const [mediaPreview, setMediaPreview] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
 
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
-  const modalRef = useRef(null);
 
   const backdropVariants = { hidden: { opacity: 0 }, visible: { opacity: 1 }, exit: { opacity: 0 } };
   const modalVariants = {
@@ -48,19 +52,48 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
     if (textareaRef.current) setCursorPosition(textareaRef.current.selectionStart);
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { setError('File size must be less than 10MB'); return; }
-    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'];
-    if (!allowed.includes(file.type)) { setError('Unsupported file type'); return; }
-    setMediaType(file.type.startsWith('image/') ? 'image' : 'video');
-    setMediaFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setMediaPreview(reader.result);
-    reader.readAsDataURL(file);
+  const handleFileChange = useCallback((e) => {
+    const incoming = Array.from(e.target.files || []);
+    if (!incoming.length) return;
+
+    const remaining = MAX_FILES - mediaFiles.length;
+    if (remaining <= 0) { setError(`Maximum ${MAX_FILES} files per post`); return; }
+    const selected = incoming.slice(0, remaining);
+
+    const invalid = selected.find(f => !ALLOWED_MIMES.includes(f.type));
+    if (invalid) { setError(`Unsupported file type: ${invalid.type}`); return; }
+
+    const oversized = selected.find(f =>
+      f.type.startsWith('image/') ? f.size > MAX_IMAGE_SIZE : f.size > MAX_VIDEO_SIZE
+    );
+    if (oversized) {
+      setError(oversized.type.startsWith('image/') ? 'Images must be under 10MB' : 'Videos must be under 50MB');
+      return;
+    }
+
+    selected.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMediaPreviews(prev => [...prev, { url: reader.result, type: file.type.startsWith('image/') ? 'image' : 'video' }]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setMediaFiles(prev => [...prev, ...selected]);
     setError(null);
-  };
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [mediaFiles.length]);
+
+  const removeMedia = useCallback((index) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
+    setMediaPreviews(prev => prev.filter((_, i) => i !== index));
+    setUploadProgress(prev => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+    setPreviewIndex(prev => Math.max(0, Math.min(prev, mediaFiles.length - 2)));
+  }, [mediaFiles.length]);
 
   const handleEmojiClick = (emojiData) => {
     try {
@@ -81,14 +114,15 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
     }
   };
 
-  const uploadMedia = async (file) => {
+  const uploadOne = async (file, index) => {
     const form = new FormData();
     form.append('file', file);
-    // Track progress manually via XMLHttpRequest since axios doesn't expose it easily
     const { data } = await API.post('/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => {
-        if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        if (e.total) {
+          setUploadProgress(prev => ({ ...prev, [index]: Math.round((e.loaded / e.total) * 100) }));
+        }
       },
     });
     return data.data;
@@ -96,20 +130,18 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim() && !mediaFile) { setError('Please add some content or media'); return; }
+    if (!content.trim() && mediaFiles.length === 0) { setError('Please add some content or media'); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      let mediaUrl = null;
-      let resolvedMediaType = null;
+      let mediaIds = [];
 
-      if (mediaFile) {
+      if (mediaFiles.length > 0) {
         try {
-          const uploaded = await uploadMedia(mediaFile);
-          mediaUrl = uploaded.url;
-          resolvedMediaType = uploaded.mediaType;
+          const results = await Promise.all(mediaFiles.map((f, i) => uploadOne(f, i)));
+          mediaIds = results.map(r => r.mediaId);
         } catch (uploadErr) {
           setError('Failed to upload media. Please try again.');
           setIsSubmitting(false);
@@ -119,21 +151,20 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
 
       if (isOffline) {
         onSubmit({
-          id: `temp-${Date.now()}`,
+          _id: `temp-${Date.now()}`,
           content: content.trim(),
-          mediaUrl,
-          mediaType: resolvedMediaType,
-          author: { firstName: user.firstName, lastName: user.lastName, photoURL: user.photoURL },
-          authorId: user.uid || user.id,
+          media: mediaPreviews.map((p, i) => ({ cdnUrl: p.url, mediaType: p.type, sortOrder: i })),
+          mediaType: mediaFiles.length === 0 ? 'none' : mediaFiles.length > 1 ? 'mixed' : (mediaFiles[0].type.startsWith('image/') ? 'image' : 'video'),
+          author: { firstName: user.firstName, lastName: user.lastName, photoURL: user.photoURL, username: user.username },
+          authorId: user._id || user.uid || user.id,
           createdAt: new Date(),
-          likes: [], likesCount: 0, comments: [], commentsCount: 0,
-          isLiked: false, isPending: true,
+          likesCount: 0, commentsCount: 0, isLiked: false, isPending: true,
         });
         onClose();
         return;
       }
 
-      const { data } = await API.post('/posts', { content: content.trim(), mediaUrl, mediaType: resolvedMediaType });
+      const { data } = await API.post('/posts', { content: content.trim(), mediaIds });
       if (data.success) {
         onSubmit(data.data.post);
         onClose();
@@ -147,6 +178,10 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
       setIsSubmitting(false);
     }
   };
+
+  const totalProgress = mediaFiles.length > 0
+    ? Math.round(Object.values(uploadProgress).reduce((s, v) => s + v, 0) / mediaFiles.length)
+    : 0;
 
   return (
     <motion.div
@@ -163,7 +198,6 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
         initial="hidden"
         animate="visible"
         exit="exit"
-        ref={modalRef}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
@@ -199,25 +233,44 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
               />
             </div>
 
-            {mediaPreview && (
+            {mediaPreviews.length > 0 && (
               <div className="media-preview">
-                <button
-                  type="button"
-                  className="remove-media"
-                  onClick={() => { setMediaFile(null); setMediaPreview(null); setMediaType(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                  aria-label="Remove media"
-                >
+                {mediaPreviews.length > 1 && (
+                  <div className="carousel-nav">
+                    <button type="button" className="carousel-btn" onClick={() => setPreviewIndex(i => Math.max(0, i - 1))} disabled={previewIndex === 0}>
+                      <FaChevronLeft />
+                    </button>
+                    <span className="carousel-counter">{previewIndex + 1} / {mediaPreviews.length}</span>
+                    <button type="button" className="carousel-btn" onClick={() => setPreviewIndex(i => Math.min(mediaPreviews.length - 1, i + 1))} disabled={previewIndex === mediaPreviews.length - 1}>
+                      <FaChevronRight />
+                    </button>
+                  </div>
+                )}
+
+                <button type="button" className="remove-media" onClick={() => removeMedia(previewIndex)} aria-label="Remove media">
                   <FaTimes />
                 </button>
-                {mediaType === 'image' ? (
-                  <img src={mediaPreview} alt="Preview" />
-                ) : (
-                  <video src={mediaPreview} controls />
-                )}
-                {uploadProgress > 0 && uploadProgress < 100 && (
+
+                {mediaPreviews[previewIndex]?.type === 'image'
+                  ? <img src={mediaPreviews[previewIndex].url} alt="Preview" />
+                  : <video src={mediaPreviews[previewIndex]?.url} controls />}
+
+                {isSubmitting && mediaFiles.length > 0 && (
                   <div className="upload-progress">
-                    <div className="progress-bar" style={{ width: `${uploadProgress}%` }} />
-                    <span className="progress-text">{Math.round(uploadProgress)}%</span>
+                    <div className="progress-bar" style={{ width: `${totalProgress}%` }} />
+                    <span className="progress-text">{totalProgress}%</span>
+                  </div>
+                )}
+
+                {mediaPreviews.length > 1 && (
+                  <div className="media-thumbs">
+                    {mediaPreviews.map((p, i) => (
+                      <button key={i} type="button" className={`thumb-btn ${i === previewIndex ? 'active' : ''}`} onClick={() => setPreviewIndex(i)}>
+                        {p.type === 'image'
+                          ? <img src={p.url} alt={`thumb-${i}`} />
+                          : <span className="video-thumb">▶</span>}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -244,18 +297,33 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  accept="image/*, video/*"
+                  accept="image/*,video/mp4,video/quicktime"
+                  multiple
                   style={{ display: 'none' }}
                 />
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSubmitting} className="media-button" aria-label="Add photo or video">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSubmitting || mediaFiles.length >= MAX_FILES}
+                  className="media-button"
+                  aria-label={`Add photo or video (${mediaFiles.length}/${MAX_FILES})`}
+                  title={`Add media (${mediaFiles.length}/${MAX_FILES})`}
+                >
                   <FaImage />
+                  {mediaFiles.length > 0 && <span className="media-count">{mediaFiles.length}</span>}
                 </button>
                 <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="emoji-button" aria-label="Add emoji">
                   <FaSmile />
                 </button>
               </div>
-              <button type="submit" className="submit-button" disabled={isSubmitting || (!content.trim() && !mediaFile)}>
-                {isSubmitting ? 'Posting...' : isOffline ? 'Save for Later' : 'Post'}
+              <button
+                type="submit"
+                className="submit-button"
+                disabled={isSubmitting || (!content.trim() && mediaFiles.length === 0)}
+              >
+                {isSubmitting
+                  ? (mediaFiles.length > 0 ? `Uploading ${totalProgress}%...` : 'Posting...')
+                  : isOffline ? 'Save for Later' : 'Post'}
               </button>
             </div>
           </form>
