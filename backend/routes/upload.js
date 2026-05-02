@@ -83,9 +83,19 @@ router.post('/', authenticateToken, uploadSingle, async (req, res) => {
       height = processed.info.height;
     }
 
+    // Convert Buffer → Uint8Array so the Supabase client (which delegates to
+    // global fetch) sends a proper binary body. Passing a Node Buffer can cause
+    // "Cannot convert argument to a ByteString" when fetch tries to serialise
+    // bytes > 255 as a Latin-1 string in headers/body.
+    const uploadBody = new Uint8Array(
+      uploadBuffer.buffer,
+      uploadBuffer.byteOffset,
+      uploadBuffer.byteLength
+    );
+
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(storageKey, uploadBuffer, {
+      .upload(storageKey, uploadBody, {
         contentType: storedMime,
         upsert: false,
       });

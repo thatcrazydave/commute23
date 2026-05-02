@@ -30,7 +30,7 @@ API.interceptors.request.use(
   (err) => Promise.reject(err)
 );
 
-// Handle 401 with refresh + queue
+// Handle 401 with refresh + queue, and 429 with Retry-After back-off
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -38,6 +38,26 @@ API.interceptors.response.use(
 
     if (!error.response) return Promise.reject(error);
 
+    // ── 429 Too Many Requests ─────────────────────────────────────────────────
+    // Back off for the duration specified by the server, then retry once.
+    if (error.response.status === 429 && !originalRequest._retried429) {
+      originalRequest._retried429 = true;
+      const retryAfterHeader = error.response.headers['retry-after'];
+      // `Retry-After` can be seconds (number) or an HTTP-date string
+      const waitMs = retryAfterHeader
+        ? (isNaN(Number(retryAfterHeader))
+          ? Math.max(0, new Date(retryAfterHeader) - Date.now())
+          : Number(retryAfterHeader) * 1000)
+        : 5000; // default: wait 5 s if no header present
+
+      console.warn(
+        `[API] 429 on ${originalRequest.url} — retrying after ${waitMs}ms`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return API(originalRequest);
+    }
+
+    // ── 401 with token refresh + queue ────────────────────────────────────────
     if (error.response.status === 401 && !originalRequest._retry) {
       const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
       if (isRefreshEndpoint) {

@@ -12,7 +12,7 @@ const mediaSchema = new mongoose.Schema(
     width: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
     fileSize: { type: Number, default: 0 },
-    status: { type: String, enum: ['pending', 'ready', 'failed'], default: 'pending' },
+    status: { type: String, enum: ['pending', 'claiming', 'ready', 'failed'], default: 'pending' },
     sortOrder: { type: Number, default: 0 },
   },
   { timestamps: true }

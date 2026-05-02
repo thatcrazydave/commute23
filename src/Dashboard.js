@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -210,12 +210,18 @@ const Dashboard = () => {
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, []);
 
-  // Load profile and data on mount
+  // Guard: load profile exactly once per mount, regardless of authUser reference changes.
+  // Without this, updateUser(profile) inside loadProfile mutates authUser → the effect
+  // re-fires → infinite loop → 429 Too Many Requests.
+  const hasFetchedProfile = useRef(false);
+
   useEffect(() => {
     if (!isAuthenticated || !authUser) return;
+    if (hasFetchedProfile.current) return;   // already in-flight or done
+    hasFetchedProfile.current = true;
     loadProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, authUser]);
+  }, [isAuthenticated]);
 
   const loadProfile = async () => {
     try {
@@ -223,7 +229,8 @@ const Dashboard = () => {
       if (data.success) {
         const profile = data.data.user;
         setUserProfile(profile);
-        updateUser(profile);
+        // NOTE: Do NOT call updateUser(profile) here — that would change the authUser
+        // reference and re-trigger the useEffect above, creating an infinite loop.
         if (!profile.isProfileComplete) setShowProfileSetup(true);
         setIsLoading(false);
         loadDashboardData();
@@ -242,8 +249,16 @@ const Dashboard = () => {
     try {
       const { data } = await API.get('/posts?limit=20');
       if (data.success) {
-        setPosts(data.data.posts);
-        setFilteredPosts(data.data.posts);
+        // Deduplicate by _id to prevent React's duplicate-key warning
+        const seen = new Set();
+        const unique = (data.data.posts || []).filter(p => {
+          const id = (p._id || p.id || '').toString();
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+        setPosts(unique);
+        setFilteredPosts(unique);
       }
     } catch (err) {
       console.error('Error fetching posts:', err);

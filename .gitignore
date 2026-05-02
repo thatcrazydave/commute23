@@ -25,3 +25,11 @@ yarn-error.log*
 
 # gstack local artifacts (security reports, session data — keep local)
 .gstack/
+
+# documents
+*.md
+!README.md
+*.txt
+*.pdf
+*.doc
+*.docx
