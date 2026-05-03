@@ -19,6 +19,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import Avatar from './components/Avatar';
 
 import API from './services/api';
+import clientLogger from './utils/clientLogger';
 import { useAuth } from './contexts/AuthContext';
 import './css/Dashboard.css';
 
@@ -29,7 +30,7 @@ class ErrorBoundary extends React.Component {
     this.state = { hasError: false };
   }
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error, info) { console.error('Dashboard error:', error, info); }
+  componentDidCatch(error, info) { clientLogger.error('Dashboard render error', { error: error?.message, info }); }
   render() {
     if (this.state.hasError) {
       return (
@@ -233,7 +234,7 @@ const Dashboard = () => {
         loadDashboardData();
       }
     } catch (err) {
-      console.error('Error loading profile:', err);
+      clientLogger.error('Error loading profile', { error: err.message });
       setIsLoading(false);
     }
   };
@@ -258,7 +259,7 @@ const Dashboard = () => {
         setFilteredPosts(unique);
       }
     } catch (err) {
-      console.error('Error fetching posts:', err);
+      clientLogger.error('Error fetching posts', { error: err.message });
     }
   };
 
@@ -267,7 +268,7 @@ const Dashboard = () => {
       const { data } = await API.get('/connections');
       if (data.success) setConnections(data.data.connections);
     } catch (err) {
-      console.error('Error fetching connections:', err);
+      clientLogger.error('Error fetching connections', { error: err.message });
     }
   };
 
@@ -276,7 +277,7 @@ const Dashboard = () => {
       const { data } = await API.get('/connections/recommendations');
       if (data.success) setRecommendedConnections(data.data.recommendations);
     } catch (err) {
-      console.error('Error fetching recommendations:', err);
+      clientLogger.error('Error fetching recommendations', { error: err.message });
     }
   };
 
@@ -285,7 +286,7 @@ const Dashboard = () => {
       const { data } = await API.get('/notifications');
       if (data.success) setUnreadNotifications(data.data.unread);
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      clientLogger.error('Error fetching notifications', { error: err.message });
     }
   };
 
@@ -334,53 +335,6 @@ const Dashboard = () => {
     }
   };
 
-  const handlePostComment = async (postId, commentText) => {
-    if (!userProfile) return;
-    const optimistic = {
-      _id: `temp-${Date.now()}`,
-      authorId: authUser?._id || authUser?.id,
-      content: commentText,
-      createdAt: new Date(),
-      author: {
-        _id: authUser?._id || authUser?.id,
-        firstName: userProfile.firstName || '',
-        lastName: userProfile.lastName || '',
-        photoURL: userProfile.photoURL || '/images/default-avatar.png',
-        username: userProfile.username || '',
-      },
-    };
-
-    const addComment = (list) => list.map(p =>
-      p.id === postId || p._id === postId
-        ? { ...p, comments: [...(p.comments || []), optimistic], commentsCount: (p.commentsCount || 0) + 1 }
-        : p
-    );
-    setPosts(addComment);
-    setFilteredPosts(addComment);
-
-    if (!isOnline) return;
-    try {
-      const res = await API.post(`/posts/${postId}/comment`, { content: commentText });
-      console.log('[Comment] API success:', res?.data);
-    } catch (err) {
-      const status = err?.response?.status;
-      const detail = err?.response?.data?.error;
-      console.error('[Comment] API failed', { postId, status, detail, message: err.message });
-
-      // Revert optimistic update so phantom comment doesn't stay on screen
-      const revert = (list) => list.map(p =>
-        p.id === postId || p._id === postId
-          ? {
-              ...p,
-              comments: (p.comments || []).filter(c => c._id !== optimistic._id),
-              commentsCount: Math.max(0, (p.commentsCount || 1) - 1),
-            }
-          : p
-      );
-      setPosts(revert);
-      setFilteredPosts(revert);
-    }
-  };
 
   const handlePostDelete = async (postId) => {
     setPosts(prev => prev.filter(p => (p.id || p._id) !== postId));
@@ -389,7 +343,7 @@ const Dashboard = () => {
     try {
       await API.delete(`/posts/${postId}`);
     } catch (err) {
-      console.error('Error deleting post:', err);
+      clientLogger.error('Error deleting post', { postId, error: err.message });
       fetchPosts(); // Re-fetch to restore if delete failed
     }
   };
@@ -413,7 +367,7 @@ const Dashboard = () => {
     try {
       await API.post('/connections', { recipientId: userId });
     } catch (err) {
-      console.error('Error creating connection:', err);
+      clientLogger.error('Error creating connection', { userId, error: err.message });
       // Revert
       setConnections(prev => prev.filter(c => c.id !== newConn.id));
       setRecommendedConnections(prev => [rec, ...prev]);
@@ -444,7 +398,6 @@ const Dashboard = () => {
                 currentUser={authUser}
                 userProfile={displayUser}
                 onLike={() => handlePostLike(post._id || post.id)}
-                onComment={handlePostComment}
                 onDelete={post.authorId === (authUser?._id || authUser?.id) || post.authorId === authUser?.uid
                   ? () => handlePostDelete(post._id || post.id)
                   : null}
