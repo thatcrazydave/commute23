@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Login from "./login";
 import Signup from "./signup";
 import Dashboard from "./Dashboard";
+import { SettingsPage } from "./Settings";
 import { FaGithub, FaTwitter, FaLinkedin, FaDiscord, FaCode, FaLaptopCode, FaUsers, FaRocket,
          FaBars, FaTimes, FaSignOutAlt, FaUser, FaCog, FaBell, FaBookmark } from 'react-icons/fa';
 import Events from "./events";
@@ -610,7 +611,7 @@ const TestimonialCard = ({ testimonial, index }) => (
     <div className="quote-icon">"</div>
     <p className="testimonial-quote">{testimonial.quote}</p>
     <div className="testimonial-author">
-      <img src={testimonial.avatar} alt={testimonial.author} className="author-avatar" />
+      <Avatar user={{ photoURL: testimonial.avatar, firstName: testimonial.author }} size={48} className="author-avatar" />
       <div className="author-info">
         <h4 className="author-name">{testimonial.author}</h4>
         <p className="author-role">{testimonial.role}</p>
@@ -842,9 +843,11 @@ const AppShell = () => {
                       </ProtectedRoute>
                     } />
                     <Route path="/settings" element={
-                      <PageTransition>
-                        <PlaceholderPage title="Settings" />
-                      </PageTransition>
+                      <ProtectedRoute>
+                        <PageTransition>
+                          <SettingsPage />
+                        </PageTransition>
+                      </ProtectedRoute>
                     } />
                     <Route path="/notifications" element={
                       <PageTransition>

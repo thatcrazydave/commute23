@@ -38,7 +38,7 @@
   z-index: 1;
 }
 
-.modal-header h2 {
+.create-post-modal .modal-header h2 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
@@ -92,7 +92,7 @@
   margin-bottom: 16px;
 }
 
-textarea {
+.create-post-modal textarea {
   width: 100%;
   min-height: 120px;
   padding: 12px;
@@ -100,16 +100,18 @@ textarea {
   border-radius: 8px;
   font-size: 16px;
   font-family: inherit;
+  color: #333;
+  background-color: #fff;
   resize: vertical;
   transition: border-color 0.2s;
 }
 
-textarea:focus {
+.create-post-modal textarea:focus {
   outline: none;
-  border-color: #1877f2;
+  border-color: #4a76a8;
 }
 
-textarea:disabled {
+.create-post-modal textarea:disabled {
   background-color: #f5f5f5;
   cursor: not-allowed;
 }
@@ -165,7 +167,7 @@ textarea:disabled {
 
 .progress-bar {
   height: 4px;
-  background: #1877f2;
+  background: #4a76a8;
   transition: width 0.3s ease;
 }
 
@@ -249,19 +251,20 @@ textarea:disabled {
 }
 
 .submit-button {
-  background-color: #1877f2;
+  background-color: #4a76a8;
   color: white;
   border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
+  border-radius: 8px;
+  padding: 10px 20px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.15s;
 }
 
-.submit-button:hover {
-  background-color: #166fe5;
+.submit-button:hover:not(:disabled) {
+  background-color: #3d6293;
+  transform: translateY(-1px);
 }
 
 .submit-button:disabled {
@@ -325,7 +328,7 @@ textarea:disabled {
     padding: 12px 16px;
   }
 
-  textarea {
+  .create-post-modal textarea {
     min-height: 100px;
   }
 }
@@ -342,86 +345,7 @@ textarea:disabled {
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .create-post-modal {
-    background-color: #242526;
-    color: #e4e6eb;
-  }
 
-  .modal-header {
-    border-bottom-color: #3e4042;
-    background-color: white;
-  }
-
-  .modal-header h2 {
-    color: #e4e6eb;
-  }
-
-  .close-button {
-    color: #b0b3b8;
-  }
-
-  .close-button:hover {
-    background-color: #3a3b3c;
-  }
-
-  .user-name {
-    color: #e4e6eb;
-  }
-
-  textarea {
-    background-color: #3a3b3c;
-    border-color: #3a3b3c;
-    color: #e4e6eb;
-  }
-
-  textarea:focus {
-    border-color: #2d88ff;
-  }
-
-  textarea:disabled {
-    background-color: #4e4f50;
-  }
-
-  .media-preview {
-    background-color: #3a3b3c;
-  }
-
-  .error-message {
-    background-color: rgba(231, 71, 60, 0.2);
-    color: #ff5c5c;
-  }
-
-  .offline-indicator {
-    background-color: rgba(39, 128, 227, 0.2);
-    color: #58a6ff;
-  }
-
-  .post-actions {
-    border-top-color: #3e4042;
-  }
-
-  .media-button,
-  .emoji-button {
-    color: #b0b3b8;
-  }
-
-  .media-button:hover,
-  .emoji-button:hover {
-    background-color: #3a3b3c;
-  }
-
-  .submit-button:disabled {
-    background-color: #4e4f50;
-    color: #8c8e91;
-  }
-  
-  .emoji-fallback {
-    background-color: #3a3b3c;
-    color: #b0b3b8;
-  }
-} 
 /* Carousel navigation */
 .carousel-nav {
   display: flex;
@@ -485,7 +409,7 @@ textarea:disabled {
   position: absolute;
   top: -6px;
   right: -6px;
-  background: #1877f2;
+  background: #4a76a8;
   color: #fff;
   font-size: 10px;
   font-weight: 700;

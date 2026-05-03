@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash, FaChevronDown } from 'react-icons/fa';
 import API from './services/api';
 import clientLogger from './utils/clientLogger';
+import CustomVideoPlayer from './components/CustomVideoPlayer';
+import Avatar from './components/Avatar';
 
 const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline }) => {
   const postId = post._id || post.id;
@@ -80,12 +82,10 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
 
     try {
       const { data } = await API.post(`/posts/${postId}/comment`, { content: text });
-      // Replace the optimistic placeholder with the server comment
       setFetchedComments(prev =>
         prev.map(c => (c._id === optimistic._id ? data.data.comment : c))
       );
     } catch (err) {
-      // Revert
       setFetchedComments(prev => prev.filter(c => c._id !== optimistic._id));
       setLocalCommentsCount(c => Math.max(0, c - 1));
       setCommentText(text);
@@ -402,10 +402,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
     <div className="post-card">
       <div className="post-header">
         <div className="post-author">
-          <img
-            src={post.author?.photoURL || '/images/default-avatar.png'}
-            alt={authorName}
-          />
+          <Avatar user={post.author || currentUser} size={40} className="post-author-avatar" />
           <div>
             <h4>{authorName}</h4>
             <span className="post-time">{formatDate(post.createdAt)}</span>
@@ -424,7 +421,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
         <div className={`post-media ${post.media.length > 1 ? 'post-media-carousel' : ''}`}>
           {post.media.map((m, i) =>
             m.mediaType === 'video'
-              ? <video key={i} src={m.cdnUrl} controls className="post-image" />
+              ? <CustomVideoPlayer key={i} src={m.cdnUrl} />
               : <img key={i} src={m.cdnUrl} alt="Post content" className="post-image" />
           )}
         </div>
