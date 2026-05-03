@@ -100,37 +100,40 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
   const handleCommentLike = async (commentId) => {
     if (isOffline) return;
 
+    // Capture snapshots BEFORE the optimistic update so the revert restores exact prior state.
+    // Re-applying the toggle function twice would double-flip and leave the count wrong
+    // under rapid/concurrent clicks or React state batching.
+    const snapshotComments = fetchedComments;
+    const snapshotReplies  = replies;
+
+    const applyToggle = (comment) => ({
+      ...comment,
+      isLikedByMe: !comment.isLikedByMe,
+      likesCount: comment.isLikedByMe
+        ? Math.max(0, (comment.likesCount || 0) - 1)
+        : (comment.likesCount || 0) + 1,
+    });
+
     // Optimistic update in fetchedComments
-    const toggle = prev =>
-      prev.map(c =>
-        c._id === commentId
-          ? { ...c, isLikedByMe: !c.isLikedByMe, likesCount: c.isLikedByMe ? Math.max(0, (c.likesCount || 0) - 1) : (c.likesCount || 0) + 1 }
-          : c
-      );
-    setFetchedComments(toggle);
+    setFetchedComments(prev =>
+      prev.map(c => c._id === commentId ? applyToggle(c) : c)
+    );
 
     // Also toggle in any open reply lists
-    const toggleInReplies = prev => ({
-      ...prev,
-      ...(Object.fromEntries(
-        Object.entries(prev).map(([cid, list]) => [
-          cid,
-          list.map(r =>
-            r._id === commentId
-              ? { ...r, isLikedByMe: !r.isLikedByMe, likesCount: r.isLikedByMe ? Math.max(0, (r.likesCount || 0) - 1) : (r.likesCount || 0) + 1 }
-              : r
-          ),
-        ])
-      )),
+    setReplies(prev => {
+      const next = {};
+      for (const [cid, list] of Object.entries(prev)) {
+        next[cid] = list.map(r => r._id === commentId ? applyToggle(r) : r);
+      }
+      return next;
     });
-    setReplies(toggleInReplies);
 
     try {
       await API.post(`/posts/${postId}/comments/${commentId}/like`);
     } catch (err) {
-      // Revert
-      setFetchedComments(toggle);
-      setReplies(toggleInReplies);
+      // Restore from snapshot — never re-apply the toggle (would double-flip)
+      setFetchedComments(snapshotComments);
+      setReplies(snapshotReplies);
       clientLogger.error('Failed to like comment', { commentId, postId, error: err.message });
     }
   };

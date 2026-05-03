@@ -521,23 +521,44 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res) =>
       return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorised to delete this comment' } });
     }
 
-    // Soft-delete the comment
-    await Comment.updateOne({ _id: comment._id }, { $set: { isDeleted: true } });
+    // Wrap all writes in a transaction — a crash between any two writes would permanently
+    // desync commentsCount / repliesCount. Same pattern used in the comment-like toggle.
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      // Soft-delete the comment
+      await Comment.updateOne({ _id: comment._id }, { $set: { isDeleted: true } }, { session });
 
-    // Decrement post's commentsCount
-    await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -1 } });
+      // Clean up likes for this comment (prevents orphan accumulation in commentlikes collection)
+      await CommentLike.deleteMany({ commentId: comment._id }, { session });
 
-    if (comment.parentId) {
-      // It's a reply — decrement parent comment's repliesCount
-      await Comment.updateOne({ _id: comment.parentId }, { $inc: { repliesCount: -1 } });
-    } else {
-      // It's a top-level comment — cascade soft-delete all its replies.
-      // Use countDocuments to get the count without loading full reply documents into memory.
-      const replyCount = await Comment.countDocuments({ parentId: comment._id, isDeleted: { $ne: true } });
-      await Comment.updateMany({ parentId: comment._id }, { $set: { isDeleted: true } });
-      if (replyCount > 0) {
-        await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -replyCount } });
+      // Decrement post's commentsCount
+      await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -1 } }, { session });
+
+      if (comment.parentId) {
+        // It's a reply — decrement parent comment's repliesCount
+        await Comment.updateOne({ _id: comment.parentId }, { $inc: { repliesCount: -1 } }, { session });
+      } else {
+        // Top-level: cascade soft-delete replies, clean their likes, decrement post count.
+        // Use distinct to get IDs without loading full documents.
+        const replyIds = await Comment.distinct(
+          '_id',
+          { parentId: comment._id, isDeleted: { $ne: true } }
+        ).session(session);
+
+        if (replyIds.length > 0) {
+          await Comment.updateMany({ _id: { $in: replyIds } }, { $set: { isDeleted: true } }, { session });
+          await CommentLike.deleteMany({ commentId: { $in: replyIds } }, { session });
+          await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -replyIds.length } }, { session });
+        }
       }
+
+      await session.commitTransaction();
+    } catch (txErr) {
+      await session.abortTransaction();
+      throw txErr;
+    } finally {
+      session.endSession();
     }
 
     Logger.info('Comment deleted', { commentId: comment._id, userId: req.user._id, isReply: !!comment.parentId });
