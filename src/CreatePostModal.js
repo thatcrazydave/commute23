@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaTimes, FaImage, FaSmile, FaInfoCircle, FaCloudUploadAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import API from './services/api';
+import clientLogger from './utils/clientLogger';
 import './css/CreatePostModal.css';
 
 const MAX_FILES = 10;
@@ -110,7 +111,7 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
         }
       }, 0);
     } catch (err) {
-      console.error('Emoji error:', err);
+      clientLogger.warn('Emoji insert error', { error: err.message });
     }
   };
 
@@ -173,7 +174,7 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
         setIsSubmitting(false);
       }
     } catch (err) {
-      console.error('Create post error:', err);
+      clientLogger.error('Create post error', { error: err.message });
       setError(err.response?.data?.error?.message || 'Something went wrong');
       setIsSubmitting(false);
     }

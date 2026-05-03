@@ -5,7 +5,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const connectDB = require('./config/db');
 const { initFirebaseAdmin } = require('./config/firebaseAdmin');
+const { createRedisClient, isReady } = require('./config/redis');
 const { authLimiter, generalLimiter, passwordResetLimiter } = require('./middleware/rateLimiter');
+const requestLogger = require('./middleware/requestLogger');
 const Logger = require('./utils/logger');
 
 const authRoutes = require('./routes/auth');
@@ -15,16 +17,15 @@ const eventsRoutes = require('./routes/events');
 const notificationsRoutes = require('./routes/notifications');
 const uploadRoutes = require('./routes/upload');
 const usersRoutes = require('./routes/users');
+const logsRoutes = require('./routes/logs');
+const mediaRoutes = require('./routes/media');
 
 const app = express();
 
-// Trust proxy when behind one (so req.ip works)
 app.set('trust proxy', 1);
 
-// Security
 app.use(helmet());
 
-// CORS
 const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .split(',')
   .map((s) => s.trim())
@@ -44,6 +45,9 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Log every request with timing
+app.use(requestLogger);
+
 // Health
 app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
@@ -61,6 +65,10 @@ app.use('/api/events', generalLimiter, eventsRoutes);
 app.use('/api/notifications', generalLimiter, notificationsRoutes);
 app.use('/api/upload', generalLimiter, uploadRoutes);
 app.use('/api/users', generalLimiter, usersRoutes);
+app.use('/api/media', generalLimiter, mediaRoutes);
+
+// Client-side error logging — uses its own rate limiter (defined inside the route)
+app.use('/api/logs', logsRoutes);
 
 // 404
 app.use((req, res) => {
@@ -81,10 +89,28 @@ const PORT = process.env.PORT || 5001;
 const start = async () => {
   await connectDB();
   initFirebaseAdmin();
+
+  // Redis + media worker (non-blocking — app starts even if Redis is down)
+  await createRedisClient();
+  if (isReady()) {
+    const { createMediaWorker } = require('./workers/mediaWorker');
+    const mediaWorker = createMediaWorker();
+    Logger.info('Media processing worker started');
+
+    const shutdown = async () => {
+      Logger.info('Shutting down media worker...');
+      await mediaWorker.close();
+      process.exit(0);
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+  }
+
   app.listen(PORT, () => {
     Logger.info(`Server running on port ${PORT}`, {
       env: process.env.NODE_ENV || 'development',
       cors: corsOrigins,
+      redis: isReady() ? 'connected' : 'unavailable (uploads will be synchronous)',
     });
   });
 };
