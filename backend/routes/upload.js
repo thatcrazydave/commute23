@@ -37,8 +37,27 @@ function uploadSingle(req, res, next) {
   });
 }
 
+/**
+ * Extract the real underlying error from a Supabase StorageError.
+ * The Supabase client wraps fetch failures in StorageUnknownError which stores
+ * the original TypeError in .originalError, and Node's fetch stores the real
+ * cause (ECONNRESET, ETIMEDOUT, etc.) in .cause.
+ */
+function extractUploadCause(err) {
+  const orig = err?.originalError || err;
+  const cause = orig?.cause;
+  if (cause) {
+    return cause.message || cause.code || String(cause);
+  }
+  return orig?.message || '';
+}
+
 // POST /api/upload — one file per call; frontend fires in parallel for multi-image posts
 router.post('/', authenticateToken, uploadSingle, async (req, res) => {
+  // Extend socket timeout for large file uploads (videos can take minutes to relay to Supabase)
+  req.socket.setTimeout(5 * 60 * 1000); // 5 minutes
+  res.setTimeout(5 * 60 * 1000);
+
   if (!req.file) {
     return res.status(400).json({ success: false, error: { code: 'NO_FILE', message: 'No file provided' } });
   }
@@ -46,6 +65,8 @@ router.post('/', authenticateToken, uploadSingle, async (req, res) => {
   const { mimetype, buffer, size } = req.file;
   const userId = req.user._id.toString();
   const isImage = IMAGE_MIMES.has(mimetype);
+
+  Logger.info('Upload request received', { userId, mimetype, size, isImage });
 
   // Enforce 10MB limit for images (multer allows up to 50MB for videos)
   if (isImage && size > 10 * 1024 * 1024) {
@@ -93,15 +114,61 @@ router.post('/', authenticateToken, uploadSingle, async (req, res) => {
       uploadBuffer.byteLength
     );
 
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(storageKey, uploadBody, {
-        contentType: storedMime,
-        upsert: false,
+    Logger.info('Uploading to Supabase', {
+      storageKey,
+      bodySize: uploadBody.byteLength,
+      mime: storedMime,
+    });
+
+    // Upload with automatic retries for transient network failures (ECONNRESET, etc.)
+    const MAX_UPLOAD_ATTEMPTS = 3;
+    let uploadError = null;
+
+    for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+      const result = await supabase.storage
+        .from(BUCKET)
+        .upload(storageKey, uploadBody, {
+          contentType: storedMime,
+          upsert: attempt > 1, // upsert on retry in case partial upload succeeded
+        });
+
+      uploadError = result.error;
+      if (!uploadError) break;
+
+      // Extract the underlying cause for better diagnostics
+      const cause = extractUploadCause(uploadError);
+      const detail = uploadError.message || String(uploadError);
+      const isTransient = /fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket hang up|network|abort/i.test(
+        `${detail} ${cause}`
+      );
+
+      Logger.warn('Supabase upload attempt failed', {
+        attempt,
+        maxAttempts: MAX_UPLOAD_ATTEMPTS,
+        error: detail,
+        cause,
+        errorType: uploadError.constructor?.name,
+        userId,
+        storageKey,
+        bodySize: uploadBody.byteLength,
+        transient: isTransient,
       });
 
+      if (!isTransient || attempt === MAX_UPLOAD_ATTEMPTS) break;
+      // Exponential backoff: 1s, 2s
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+    }
+
     if (uploadError) {
-      Logger.error('Supabase upload error', { error: uploadError.message, userId, storageKey });
+      const cause = extractUploadCause(uploadError);
+      Logger.error('Supabase upload error (all attempts failed)', {
+        error: uploadError.message,
+        cause,
+        errorType: uploadError.constructor?.name,
+        userId,
+        storageKey,
+        bodySize: uploadBody.byteLength,
+      });
       // Do not forward Supabase error details to client — may contain bucket/policy info
       return res.status(500).json({ success: false, error: { code: 'UPLOAD_FAILED', message: 'Upload failed. Please try again.' } });
     }
@@ -130,7 +197,7 @@ router.post('/', authenticateToken, uploadSingle, async (req, res) => {
       throw dbErr; // re-throw to hit outer catch
     }
 
-    Logger.info('Media uploaded', { mediaId: media._id, userId, mediaType: media.mediaType });
+    Logger.info('Media uploaded', { mediaId: media._id, userId, mediaType: media.mediaType, fileSize: uploadBuffer.length });
     return res.status(201).json({
       success: true,
       data: {
@@ -143,7 +210,7 @@ router.post('/', authenticateToken, uploadSingle, async (req, res) => {
       },
     });
   } catch (err) {
-    Logger.error('Upload processing error', { error: err.message, userId });
+    Logger.error('Upload processing error', { error: err.message, cause: err.cause?.message, userId });
     return res.status(500).json({ success: false, error: { code: 'PROCESSING_FAILED', message: 'Failed to process upload' } });
   }
 });

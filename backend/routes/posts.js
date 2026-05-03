@@ -256,6 +256,8 @@ router.post('/:id/like', authenticateToken, async (req, res) => {
 // POST /api/posts/:id/comment
 router.post('/:id/comment', authenticateToken, async (req, res) => {
   try {
+    Logger.info('Comment request received', { postId: req.params.id, userId: req.user._id, body: req.body });
+
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
     }

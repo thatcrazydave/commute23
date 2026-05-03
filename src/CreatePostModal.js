@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FaTimes, FaImage, FaSmile, FaInfoCircle, FaCloudUploadAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import API from './services/api';
+import Avatar from './components/Avatar';
 import './css/CreatePostModal.css';
 
 const MAX_FILES = 10;
@@ -209,11 +210,7 @@ const CreatePostModal = ({ user, onClose, onSubmit, isOffline }) => {
 
         <div className="modal-content">
           <div className="user-info">
-            <img
-              src={user.photoURL || '/images/default-avatar.png'}
-              alt={`${user.firstName || ''} ${user.lastName || ''}`}
-              className="user-avatar"
-            />
+            <Avatar user={user} size={40} className="user-avatar" />
             <span className="user-name">{user.firstName || ''} {user.lastName || ''}</span>
           </div>
 

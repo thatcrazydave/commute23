@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { FaThumbsUp, FaComment, FaEllipsisH } from 'react-icons/fa';
+import CustomVideoPlayer from './components/CustomVideoPlayer';
+import Avatar from './components/Avatar';
 
 const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete, isOffline }) => {
   const [showComments, setShowComments] = useState(false);
@@ -12,7 +14,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
   const handleSubmitComment = (e) => {
     e.preventDefault();
     if (commentText.trim()) {
-      onComment(post.id, commentText);
+      onComment(post._id || post.id, commentText);
       setCommentText('');
     }
   };
@@ -21,10 +23,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
     <div className="post-card">
       <div className="post-header">
         <div className="post-author">
-          <img 
-            src={post.author?.photoURL || '/images/default-avatar.png'}
-            alt={authorName} 
-          />
+          <Avatar user={post.author || currentUser} size={40} className="post-author-avatar" />
           <div>
             <h4>{authorName}</h4>
             <span className="post-time">
@@ -47,7 +46,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
         <div className={`post-media ${post.media.length > 1 ? 'post-media-carousel' : ''}`}>
           {post.media.map((m, i) => (
             m.mediaType === 'video'
-              ? <video key={i} src={m.cdnUrl} controls className="post-image" />
+              ? <CustomVideoPlayer key={i} src={m.cdnUrl} />
               : <img key={i} src={m.cdnUrl} alt="Post content" className="post-image" />
           ))}
         </div>
@@ -56,7 +55,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
       <div className="post-actions">
         <button 
           className={`action-btn ${post.isLiked ? 'liked' : ''}`}
-          onClick={() => onLike(post.id)}
+          onClick={() => onLike(post._id || post.id)}
           disabled={isOffline}
         >
           <FaThumbsUp />
@@ -93,10 +92,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onComment, onDelete,
 
           {post.comments?.map((comment, index) => (
             <div key={comment._id || index} className="comment">
-              <img
-                src={comment.author?.photoURL || comment.authorPhoto || '/images/default-avatar.png'}
-                alt={comment.author?.firstName || comment.authorName || 'User'}
-              />
+              <Avatar user={comment.author || { photoURL: comment.authorPhoto, firstName: comment.authorName }} size={32} className="comment-avatar" />
               <div className="comment-content">
                 <h5>
                   {comment.author?.firstName

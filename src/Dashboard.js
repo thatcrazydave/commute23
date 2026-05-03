@@ -3,14 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   FaUserFriends,
-  FaSignOutAlt,
   FaSearch,
   FaEdit,
   FaCheckCircle,
   FaWifi,
   FaBan,
   FaExclamationCircle,
-  FaUserCircle,
   FaSyncAlt,
 } from 'react-icons/fa';
 import DashboardSidebar from './DashboardSidebar';
@@ -18,6 +16,8 @@ import ConnectionCard from './ConnectionCard';
 import PostCard from './PostCard';
 import CreatePostModal from './CreatePostModal';
 import LoadingSpinner from './components/LoadingSpinner';
+import Avatar from './components/Avatar';
+
 import API from './services/api';
 import { useAuth } from './contexts/AuthContext';
 import './css/Dashboard.css';
@@ -84,12 +84,13 @@ const ProfileSetupModal = ({ onComplete }) => {
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div className="profile-setup-modal" initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -50, opacity: 0 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }}>
-        <div className="modal-header">
+        <div className="modal-header profile-modal-header">
           <h2>Complete Your Profile</h2>
           <p>Welcome to the community! Let's set up your profile.</p>
         </div>
-        {error && <div className="error-message">{error}</div>}
-        <form onSubmit={handleSubmit}>
+        <div className="modal-body profile-modal-body">
+          {error && <div className="error-message">{error}</div>}
+          <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="firstName">First Name *</label>
             <input type="text" id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Enter your first name" required />
@@ -115,6 +116,7 @@ const ProfileSetupModal = ({ onComplete }) => {
             </button>
           </div>
         </form>
+        </div>
       </motion.div>
     </motion.div>
   );
@@ -154,11 +156,7 @@ const ConnectionRecommendation = ({ recommendation, onConnect, isOffline }) => {
   return (
     <div className="connection-recommendation">
       <div className="connection-avatar">
-        {recommendation.photoURL ? (
-          <img src={recommendation.photoURL} alt={`${recommendation.firstName} ${recommendation.lastName}`} />
-        ) : (
-          <FaUserCircle size={40} />
-        )}
+        <Avatar user={recommendation} size={48} />
       </div>
       <div className="connection-info">
         <h3>{recommendation.firstName} {recommendation.lastName}</h3>
@@ -175,14 +173,13 @@ const ConnectionRecommendation = ({ recommendation, onConnect, isOffline }) => {
 // Main Dashboard
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user: authUser, isAuthenticated, isInitialized, logout, updateUser } = useAuth();
+  const { user: authUser, isAuthenticated, isInitialized } = useAuth();
 
   const [userProfile, setUserProfile] = useState(null);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [posts, setPosts] = useState([]);
@@ -363,9 +360,25 @@ const Dashboard = () => {
 
     if (!isOnline) return;
     try {
-      await API.post(`/posts/${postId}/comment`, { content: commentText });
+      const res = await API.post(`/posts/${postId}/comment`, { content: commentText });
+      console.log('[Comment] API success:', res?.data);
     } catch (err) {
-      console.error('Error adding comment:', err);
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.error;
+      console.error('[Comment] API failed', { postId, status, detail, message: err.message });
+
+      // Revert optimistic update so phantom comment doesn't stay on screen
+      const revert = (list) => list.map(p =>
+        p.id === postId || p._id === postId
+          ? {
+              ...p,
+              comments: (p.comments || []).filter(c => c._id !== optimistic._id),
+              commentsCount: Math.max(0, (p.commentsCount || 1) - 1),
+            }
+          : p
+      );
+      setPosts(revert);
+      setFilteredPosts(revert);
     }
   };
 
@@ -407,10 +420,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
+
 
   const displayUser = userProfile || authUser;
 
@@ -419,11 +429,6 @@ const Dashboard = () => {
     return (
       <div className="content-feed">
         <div className="create-post">
-          <div className="create-post-avatar">
-            {displayUser?.photoURL
-              ? <img src={displayUser.photoURL} alt={displayUser.firstName || 'User'} />
-              : <FaUserCircle size={40} />}
-          </div>
           <div className="create-post-input">
             <button onClick={() => setShowCreatePost(true)} style={{ cursor: 'pointer' }}>
               What's on your mind, {displayUser?.firstName || 'User'}?
@@ -553,38 +558,6 @@ const Dashboard = () => {
                 onChange={e => setSearchQuery(e.target.value)}
                 className="search-input"
               />
-            </div>
-
-            <div className="header-actions">
-              <div className="user-profile-dropdown">
-                <button
-                  className="user-avatar"
-                  onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  aria-label="User menu"
-                >
-                  {displayUser?.photoURL
-                    ? <img src={displayUser.photoURL} alt={displayUser.firstName || 'User'} />
-                    : <FaUserCircle />}
-                </button>
-                {showUserDropdown && displayUser && (
-                  <div className="user-menu">
-                    <div className="user-info">
-                      <h3>{displayUser.firstName} {displayUser.lastName}</h3>
-                      <p>{displayUser.email}</p>
-                    </div>
-                    <ul>
-                      <li onClick={() => setActiveTab('profile')}>
-                        <button>View Profile</button>
-                      </li>
-                      <li>
-                        <button onClick={handleLogout}>
-                          <FaSignOutAlt /> Sign Out
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 

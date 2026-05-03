@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaUserPlus, FaCheck, FaTimes, FaEllipsisH, FaUserCircle } from 'react-icons/fa';
+import { FaUserPlus, FaCheck, FaTimes, FaEllipsisH } from 'react-icons/fa';
 import API from './services/api';
+import Avatar from './components/Avatar';
 import './css/ConnectionCard.css';
 
 const ConnectionCard = ({ connection, isOffline, onRemoved }) => {
@@ -62,11 +63,7 @@ const ConnectionCard = ({ connection, isOffline, onRemoved }) => {
       transition={{ duration: 0.2 }}
     >
       <div className="connection-avatar">
-        {connection.user?.photoURL ? (
-          <img src={connection.user.photoURL} alt={connection.user.firstName} />
-        ) : (
-          <FaUserCircle size={40} />
-        )}
+        <Avatar user={connection.user} size={50} />
       </div>
 
       <div className="connection-info">

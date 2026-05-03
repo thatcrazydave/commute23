@@ -57,7 +57,15 @@ const DashboardSidebar = ({ activeTab, setActiveTab, notificationsCount = 0 }) =
             <li key={item.id}>
               <button
                 className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'events') navigate('/events');
+                  else if (item.id === 'settings') navigate('/settings');
+                  else if (item.id === 'notifications') navigate('/notifications');
+                  else if (item.id === 'connections') navigate('/community');
+                  else if (item.id === 'saved') navigate('/bookmarks');
+                  else if (item.id === 'feed') navigate('/Dashboard');
+                  else setActiveTab(item.id);
+                }}
               >
                 <span className="sidebar-icon">{item.icon}</span>
                 <span className="sidebar-label">{item.label}</span>

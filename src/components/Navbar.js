@@ -20,6 +20,7 @@ import {
   FaUserFriends,
   FaCalendarAlt
 } from 'react-icons/fa';
+import Avatar from './Avatar';
 import '../css/Navbar.css';
 
 const Navbar = () => {
@@ -278,10 +279,10 @@ const Navbar = () => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <img 
-                      src={userProfile?.photoURL || '/images/default-avatar.png'} 
-                      alt="Profile" 
-                      className="user-avatar"
+                    <Avatar 
+                      user={userProfile || user} 
+                      size={32} 
+                      className="user-avatar" 
                     />
                     <span className="user-name">
                       {userProfile?.firstName || user.email?.split('@')[0]}
@@ -299,10 +300,10 @@ const Navbar = () => {
                         variants={menuItemVariants}
                       >
                         <div className="user-info">
-                          <img 
-                            src={userProfile?.photoURL || '/images/default-avatar.png'} 
-                            alt="Profile" 
-                            className="user-avatar-large"
+                          <Avatar 
+                            user={userProfile || user} 
+                            size={48} 
+                            className="user-avatar-large" 
                           />
                           <div>
                             <h3>{userProfile?.firstName} {userProfile?.lastName}</h3>

@@ -96,7 +96,7 @@ const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
               </div>
               <div style={{ display:'flex', gap:'10px', marginTop:'20px' }}>
                 <button type="button" onClick={onClose} disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', border:'1px solid #ddd', cursor:'pointer' }}>Cancel</button>
-                <button type="submit" disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', backgroundColor:'#4a90e2', color:'white', border:'none', cursor:'pointer' }}>{isSubmitting ? 'Creating...' : 'Create Event'}</button>
+                <button type="submit" disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', backgroundColor:'#4a76a8', color:'white', border:'none', cursor:'pointer' }}>{isSubmitting ? 'Creating...' : 'Create Event'}</button>
               </div>
             </form>
           </motion.div>
