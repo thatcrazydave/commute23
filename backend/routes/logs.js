@@ -15,15 +15,16 @@ const logsRateLimit = rateLimit({
 });
 
 // POST /api/logs/client — receives frontend errors and writes them to backend terminal.
-// Uses optionalAuth so pre-login errors are captured too (userId will be 'anon').
-router.post('/client', optionalAuth, logsRateLimit, (req, res) => {
+// Rate limiter runs FIRST (before optionalAuth DB lookup) to prevent unauthenticated flood
+// from triggering a MongoDB read on every request.
+router.post('/client', logsRateLimit, optionalAuth, (req, res) => {
   const level   = ['error', 'warn'].includes(req.body?.level) ? req.body.level : 'error';
   const message = String(req.body?.message || '').slice(0, 256).replace(/[\n\r]/g, ' ');
   const rawMeta = req.body?.meta;
   const meta    = (typeof rawMeta === 'object' && rawMeta !== null && !Array.isArray(rawMeta))
     ? rawMeta
     : {};
-  const ts = String(req.body?.ts || '').slice(0, 30);
+  const ts = String(req.body?.ts || '').slice(0, 30).replace(/[\n\r\x00]/g, ' ');
 
   const metaStr = JSON.stringify(meta);
   if (metaStr.length > 1024) {

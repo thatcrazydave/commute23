@@ -338,10 +338,6 @@ const Dashboard = () => {
     }
   };
 
-  // PostCard now manages its own comments. This handler is kept for compatibility
-  // but is no longer called for API requests (PostCard calls the API directly).
-  // eslint-disable-next-line no-unused-vars
-  const handlePostComment = (postId, commentText) => {};
 
   const handlePostDelete = async (postId) => {
     setPosts(prev => prev.filter(p => (p.id || p._id) !== postId));
@@ -413,7 +409,6 @@ const Dashboard = () => {
                 currentUser={authUser}
                 userProfile={displayUser}
                 onLike={() => handlePostLike(post._id || post.id)}
-                onComment={handlePostComment}
                 onDelete={post.authorId === (authUser?._id || authUser?.id) || post.authorId === authUser?.uid
                   ? () => handlePostDelete(post._id || post.id)
                   : null}

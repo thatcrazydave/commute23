@@ -531,11 +531,12 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res) =>
       // It's a reply — decrement parent comment's repliesCount
       await Comment.updateOne({ _id: comment.parentId }, { $inc: { repliesCount: -1 } });
     } else {
-      // It's a top-level comment — cascade soft-delete all its replies
-      const replies = await Comment.find({ parentId: comment._id, isDeleted: { $ne: true } });
-      if (replies.length > 0) {
-        await Comment.updateMany({ parentId: comment._id }, { $set: { isDeleted: true } });
-        await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -replies.length } });
+      // It's a top-level comment — cascade soft-delete all its replies.
+      // Use countDocuments to get the count without loading full reply documents into memory.
+      const replyCount = await Comment.countDocuments({ parentId: comment._id, isDeleted: { $ne: true } });
+      await Comment.updateMany({ parentId: comment._id }, { $set: { isDeleted: true } });
+      if (replyCount > 0) {
+        await Post.updateOne({ _id: req.params.id }, { $inc: { commentsCount: -replyCount } });
       }
     }
 

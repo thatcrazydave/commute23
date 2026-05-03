@@ -24,9 +24,14 @@ async function createRedisClient() {
     Logger.warn('Redis unreachable — background jobs disabled. Start redis-server to enable.', {
       error: err.message,
     });
+    // Disconnect the unusable client so ioredis doesn't keep retrying in the background.
+    client.disconnect();
   }
 
-  return client;
+  // Return the module-level variable (null on failure) so callers always get
+  // the same value as getClient(). Returning the raw client when it failed
+  // would give callers an unusable object while isReady() returns false.
+  return redisClient;
 }
 
 module.exports = {

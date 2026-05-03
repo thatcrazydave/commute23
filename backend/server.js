@@ -92,19 +92,21 @@ const start = async () => {
 
   // Redis + media worker (non-blocking — app starts even if Redis is down)
   await createRedisClient();
+  let mediaWorker = null;
   if (isReady()) {
     const { createMediaWorker } = require('./workers/mediaWorker');
-    const mediaWorker = createMediaWorker();
+    mediaWorker = createMediaWorker();
     Logger.info('Media processing worker started');
-
-    const shutdown = async () => {
-      Logger.info('Shutting down media worker...');
-      await mediaWorker.close();
-      process.exit(0);
-    };
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
   }
+
+  // Graceful shutdown — registered unconditionally so SIGTERM always drains in-flight requests
+  const shutdown = async () => {
+    Logger.info('Shutting down...');
+    if (mediaWorker) await mediaWorker.close();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 
   app.listen(PORT, () => {
     Logger.info(`Server running on port ${PORT}`, {
