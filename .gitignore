@@ -29,6 +29,9 @@ yarn-error.log*
 # documents
 *.md
 !README.md
+!CLAUDE.md
+!CHANGELOG.md
+!AUTH_COMPARISON.md
 *.txt
 *.pdf
 *.doc
