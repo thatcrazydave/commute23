@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash, FaChevronDown } from 'react-icons/fa';
+import { FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash, FaChevronDown, FaSmile } from 'react-icons/fa';
+import EmojiPicker from 'emoji-picker-react';
 import API from './services/api';
 import clientLogger from './utils/clientLogger';
 import CustomVideoPlayer from './components/CustomVideoPlayer';
 import Avatar from './components/Avatar';
+import './css/PostCard.css';
 
 const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline }) => {
   const postId = post._id || post.id;
@@ -17,15 +19,25 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
 
   const [commentText, setCommentText] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [replyingTo, setReplyingTo]   = useState(null); // commentId being replied to
   const [replyText, setReplyText]     = useState('');
   const [replyError, setReplyError]   = useState(null);
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [showReplyEmojiPicker, setShowReplyEmojiPicker] = useState(false);
 
   const [replies, setReplies]               = useState({}); // { [commentId]: [...] }
   const [loadingReplies, setLoadingReplies] = useState({}); // { [commentId]: bool }
   const [showReplies, setShowReplies]       = useState({}); // { [commentId]: bool }
+
+  const onEmojiClick = (emojiObject) => {
+    setCommentText(prevInput => prevInput + emojiObject.emoji);
+  };
+
+  const onReplyEmojiClick = (emojiObject) => {
+    setReplyText(prevInput => prevInput + emojiObject.emoji);
+  };
 
   const authorName = post.author?.firstName && post.author?.lastName
     ? `${post.author.firstName} ${post.author.lastName}`
@@ -85,6 +97,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
       setFetchedComments(prev =>
         prev.map(c => (c._id === optimistic._id ? data.data.comment : c))
       );
+      setShowEmojiPicker(false);
     } catch (err) {
       setFetchedComments(prev => prev.filter(c => c._id !== optimistic._id));
       setLocalCommentsCount(c => Math.max(0, c - 1));
@@ -192,6 +205,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
         [parentId]: (prev[parentId] || []).map(r => r._id === optimistic._id ? data.data.comment : r),
       }));
       setReplyingTo(null);
+      setShowReplyEmojiPicker(false);
     } catch (err) {
       // Revert
       setReplies(prev => ({
@@ -275,6 +289,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
             setReplyingTo(replyingTo === comment._id ? null : comment._id);
             setReplyError(null);
             setReplyText('');
+            setShowReplyEmojiPicker(false);
           }}
           disabled={isOffline}
           title="Reply"
@@ -364,20 +379,39 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
               className="comment-avatar"
             />
             <div className="reply-input-wrap">
-              <input
-                type="text"
-                placeholder={`Reply to ${comment.author?.firstName || 'this comment'}...`}
-                value={replyText}
-                onChange={e => setReplyText(e.target.value)}
-                disabled={replySubmitting}
-                autoFocus
-              />
+              <div className="comment-input-container">
+                <input
+                  type="text"
+                  placeholder={`Reply to ${comment.author?.firstName || 'this comment'}...`}
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  disabled={replySubmitting}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="emoji-btn"
+                  onClick={() => setShowReplyEmojiPicker(!showReplyEmojiPicker)}
+                >
+                  <FaSmile />
+                </button>
+                {showReplyEmojiPicker && (
+                  <div className="emoji-picker-container" onClick={(e) => {
+                    // Prevent href="#" from navigating/scrolling to top
+                    if (e.target.closest('a[href="#"]')) {
+                      e.preventDefault();
+                    }
+                  }}>
+                    <EmojiPicker onEmojiClick={onReplyEmojiClick} />
+                  </div>
+                )}
+              </div>
               <div className="reply-actions">
                 {replyError && <span className="reply-error">{replyError}</span>}
                 <button
                   type="button"
                   className="cancel-reply-btn"
-                  onClick={() => { setReplyingTo(null); setReplyText(''); setReplyError(null); }}
+                  onClick={() => { setReplyingTo(null); setReplyText(''); setReplyError(null); setShowReplyEmojiPicker(false); }}
                 >
                   Cancel
                 </button>
@@ -456,13 +490,32 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
               className="comment-avatar"
             />
             <div className="comment-input-wrap">
-              <input
-                type="text"
-                placeholder="Write a comment..."
-                value={commentText}
-                onChange={e => setCommentText(e.target.value)}
-                disabled={isOffline || commentSubmitting}
-              />
+              <div className="comment-input-container">
+                <input
+                  type="text"
+                  placeholder="Write a comment..."
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  disabled={isOffline || commentSubmitting}
+                />
+                <button
+                  type="button"
+                  className="emoji-btn"
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                >
+                  <FaSmile />
+                </button>
+                {showEmojiPicker && (
+                  <div className="emoji-picker-container" onClick={(e) => {
+                    // Prevent href="#" from navigating/scrolling to top
+                    if (e.target.closest('a[href="#"]')) {
+                      e.preventDefault();
+                    }
+                  }}>
+                    <EmojiPicker onEmojiClick={onEmojiClick} />
+                  </div>
+                )}
+              </div>
               <button
                 type="submit"
                 className="primary-button"
