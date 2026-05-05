@@ -47,6 +47,14 @@ Frontend calls `REACT_APP_API_URL` (default `http://localhost:5001/api`). All ro
 2. All protected API requests → `Authorization: Bearer <accessToken>`
 3. 401 → auto-refresh via POST `/api/auth/refresh`
 
+## GBrain Configuration (configured by /setup-gbrain)
+- Engine: pglite
+- Config file: ~/.gbrain/config.json (mode 0600)
+- Setup date: 2026-05-05
+- MCP registered: yes (user scope, /Users/ogheneovosegba/.bun/bin/gbrain serve)
+- Memory sync: full → github.com/thatcrazydave/gstack-brain-ogheneovosegba
+- Current repo policy: read-write
+
 ## Skill routing
 
 When the user's request matches an available skill, invoke it via the Skill tool.
