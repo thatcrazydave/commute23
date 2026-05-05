@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0.2] - 2026-05-05
+
+### Added
+- Added `CLAUDE.md` with full project architecture context: stack overview, local dev setup, key file references, auth flow, API base, and skill routing rules
+- Added GBrain configuration to `CLAUDE.md`: PGLite brain engine, MCP registration, and brain sync settings
+- Updated `.gitignore` to whitelist `.context/` directory attachments while keeping other context directories ignored
+
 ## [0.1.0.1] - 2026-04-29
 
 ### Changed
