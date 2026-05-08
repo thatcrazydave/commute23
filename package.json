@@ -35,6 +35,18 @@
       "react-app/jest"
     ]
   },
+  "overrides": {
+    "nth-check": ">=2.0.1",
+    "postcss": ">=8.5.10",
+    "serialize-javascript": ">=7.0.5",
+    "webpack-dev-server": ">=5.2.1",
+    "workbox-build": ">=7.0.1",
+    "workbox-webpack-plugin": ">=7.0.1",
+    "svgo": ">=2.0.0",
+    "css-select": ">=5.0.0",
+    "underscore": ">=1.13.8",
+    "@tootallnate/once": ">=3.0.1"
+  },
   "browserslist": {
     "production": [
       ">0.2%",
