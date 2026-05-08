@@ -59,11 +59,13 @@ API.interceptors.response.use(
 
     // ── 401 with token refresh + queue ────────────────────────────────────────
     if (error.response.status === 401 && !originalRequest._retry) {
-      const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
-      if (isRefreshEndpoint) {
-        sessionStorage.removeItem(sk('authToken'));
-        sessionStorage.removeItem(sk('refreshToken'));
-        sessionStorage.removeItem(sk('user'));
+      const isAuthEndpoint = originalRequest.url?.match(/\/auth\/(login|signup|refresh)/);
+      if (isAuthEndpoint) {
+        if (originalRequest.url?.includes('/auth/refresh')) {
+          sessionStorage.removeItem(sk('authToken'));
+          sessionStorage.removeItem(sk('refreshToken'));
+          sessionStorage.removeItem(sk('user'));
+        }
         return Promise.reject(error);
       }
 

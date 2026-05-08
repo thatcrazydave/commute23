@@ -126,7 +126,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
 
     if (!user) {
       handleFailedLogin(req, identifier);
-      Logger.warn('Login attempt for non-existent user', { identifier, ip: req.ip });
+      Logger.warn('Failed login - Non-existent user', { identifier, ip: req.ip });
       return res.status(401).json({
         success: false,
         error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' },
@@ -134,7 +134,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
     }
 
     if (!user.isActive) {
-      Logger.warn('Login attempt on inactive account', { userId: user._id });
+      Logger.warn('Failed login - Account inactive', { userId: user._id, identifier, ip: req.ip });
       return res.status(403).json({
         success: false,
         error: { code: 'ACCOUNT_INACTIVE', message: 'Account is inactive, contact support' },
@@ -144,6 +144,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
     if (!user.password) {
       // Account was created via OAuth — no password set
       handleFailedLogin(req, identifier);
+      Logger.warn('Failed login - OAuth account used password login', { userId: user._id, identifier, ip: req.ip });
       return res.status(401).json({
         success: false,
         error: {
@@ -156,7 +157,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
     const ok = await user.comparePassword(password);
     if (!ok) {
       const result = handleFailedLogin(req, identifier);
-      Logger.warn('Failed login', { userId: user._id, attempts: result.attempts });
+      Logger.warn('Failed login - Invalid password', { userId: user._id, identifier, ip: req.ip, attempts: result.attempts });
       return res.status(401).json({
         success: false,
         error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' },
@@ -168,7 +169,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
     await user.save();
 
     const { accessToken, refreshToken } = tokenPair(user);
-    Logger.info('Successful login', { userId: user._id, role: user.role });
+    Logger.info('Successful login', { userId: user._id, identifier, role: user.role, ip: req.ip });
 
     return res.json({
       success: true,

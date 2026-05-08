@@ -1350,14 +1350,6 @@ img {
   z-index: 1001;
 }
 
-/* Ensure proper styling for mobile menu toggle */
-.menu-toggle {
-  background: none;
-  border: none;
-  display: none;
-  cursor: pointer;
-  transition: transform var(--transition-fast);
-}
 
 /* Ensure proper styling for active menu items */
 .nav-menu.active {

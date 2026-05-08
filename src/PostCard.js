@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash, FaChevronDown, FaSmile } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash, FaChevronDown, FaSmile, FaEdit, FaLink, FaCommentSlash, FaEyeSlash } from 'react-icons/fa';
 import EmojiPicker from 'emoji-picker-react';
 import API from './services/api';
 import clientLogger from './utils/clientLogger';
@@ -16,6 +16,29 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
   const [commentPage, setCommentPage]           = useState(1);
   const [hasMoreComments, setHasMoreComments]   = useState(true);
   const [localCommentsCount, setLocalCommentsCount] = useState(post.commentsCount || 0);
+
+  // New Post Options State
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [postContent, setPostContent] = useState(post.content || '');
+  const [editContent, setEditContent] = useState(post.content || '');
+  const [isCommentingOff, setIsCommentingOff] = useState(post.isCommentingOff || false);
+  const [hideLikeCount, setHideLikeCount] = useState(post.hideLikeCount || false);
+
+  const menuRef = useRef();
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const [commentText, setCommentText] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -250,6 +273,47 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
     }
   };
 
+  // ── Post Options Handlers ───────────────────────────────────────────────────
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/post/${postId}`;
+    navigator.clipboard.writeText(link);
+    setShowMenu(false);
+    // Ideally trigger a toast notification here
+  };
+
+  const handleSaveEdit = async () => {
+    setPostContent(editContent);
+    setIsEditing(false);
+    try {
+      await API.put(`/posts/${postId}`, { content: editContent });
+    } catch (e) {
+      clientLogger.error('Edit API failed, applying locally for MVP', e);
+    }
+  };
+
+  const toggleCommenting = async () => {
+    const newState = !isCommentingOff;
+    setIsCommentingOff(newState);
+    setShowMenu(false);
+    try {
+      await API.put(`/posts/${postId}`, { isCommentingOff: newState });
+    } catch (e) {
+      clientLogger.error('Toggle commenting API failed, applying locally for MVP', e);
+    }
+  };
+
+  const toggleHideLikeCount = async () => {
+    const newState = !hideLikeCount;
+    setHideLikeCount(newState);
+    setShowMenu(false);
+    try {
+      await API.put(`/posts/${postId}`, { hideLikeCount: newState });
+    } catch (e) {
+      clientLogger.error('Toggle hide like count API failed, applying locally for MVP', e);
+    }
+  };
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const currentUserId = currentUser?._id || currentUser?.id || currentUser?.uid;
@@ -314,11 +378,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
 
   const renderComment = (comment) => (
     <div key={comment._id} className="comment">
-      <img
-        src={comment.author?.photoURL || '/images/default-avatar.png'}
-        alt={comment.author?.firstName || 'User'}
-        className="comment-avatar"
-      />
+      <Avatar user={comment.author} size={36} className="comment-avatar" />
       <div className="comment-body">
         <div className="comment-bubble">
           <h5 className="comment-author">
@@ -351,11 +411,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
         {/* Replies list */}
         {showReplies[comment._id] && (replies[comment._id] || []).map(reply => (
           <div key={reply._id} className="comment comment-reply">
-            <img
-              src={reply.author?.photoURL || '/images/default-avatar.png'}
-              alt={reply.author?.firstName || 'User'}
-              className="comment-avatar"
-            />
+            <Avatar user={reply.author} size={36} className="comment-avatar" />
             <div className="comment-body">
               <div className="comment-bubble">
                 <h5 className="comment-author">
@@ -373,11 +429,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
         {/* Reply input */}
         {replyingTo === comment._id && (
           <form className="reply-form" onSubmit={handleReplySubmit}>
-            <img
-              src={userProfile?.photoURL || '/images/default-avatar.png'}
-              alt="You"
-              className="comment-avatar"
-            />
+            <Avatar user={userProfile || currentUser} size={36} className="comment-avatar" />
             <div className="reply-input-wrap">
               <div className="comment-input-container">
                 <input
@@ -443,13 +495,62 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
           </div>
         </div>
         {onDelete && (
-          <button className="post-menu" onClick={onDelete}>
-            <FaEllipsisH />
-          </button>
+          <div className="post-menu" ref={menuRef}>
+            <button className="menu-button" onClick={() => setShowMenu(!showMenu)}>
+              <FaEllipsisH />
+            </button>
+            {showMenu && (
+              <div className="menu-dropdown">
+                <button className="menu-item" onClick={() => { setIsEditing(true); setShowMenu(false); }}>
+                  <FaEdit /> Edit Post
+                </button>
+                <button className="menu-item" onClick={handleCopyLink}>
+                  <FaLink /> Copy Link
+                </button>
+                <button className="menu-item" onClick={toggleHideLikeCount}>
+                  <FaEyeSlash /> {hideLikeCount ? 'Show like count' : 'Hide like count'}
+                </button>
+                <button className="menu-item" onClick={toggleCommenting}>
+                  <FaCommentSlash /> {isCommentingOff ? 'Turn on commenting' : 'Turn off commenting'}
+                </button>
+                <button className="menu-item delete" onClick={() => { setShowDeleteConfirm(true); setShowMenu(false); }}>
+                  <FaTrash /> Delete Post
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="post-content">{post.content}</div>
+      {showDeleteConfirm && (
+        <div className="inline-modal-overlay">
+          <div className="inline-modal">
+            <h4>Delete Post?</h4>
+            <p>Are you sure you want to delete this post? This action cannot be undone.</p>
+            <div className="inline-modal-actions">
+              <button type="button" onClick={() => setShowDeleteConfirm(false)} className="cancel-btn">Cancel</button>
+              <button type="button" onClick={() => { setShowDeleteConfirm(false); onDelete(); }} className="confirm-delete-btn">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditing ? (
+        <div className="post-edit-mode">
+          <textarea 
+            value={editContent} 
+            onChange={e => setEditContent(e.target.value)} 
+            className="post-edit-textarea"
+            rows="4"
+          />
+          <div className="post-edit-actions">
+            <button onClick={() => {setIsEditing(false); setEditContent(postContent);}} className="cancel-btn">Cancel</button>
+            <button onClick={handleSaveEdit} className="save-btn">Save</button>
+          </div>
+        </div>
+      ) : (
+        <div className="post-content">{postContent}</div>
+      )}
 
       {post.media && post.media.length > 0 && (
         <div className={`post-media ${post.media.length > 1 ? 'post-media-carousel' : ''}`}>
@@ -468,27 +569,25 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, isOffline 
           disabled={isOffline}
         >
           <FaThumbsUp />
-          <span>{post.likesCount || 0} Likes</span>
+          <span>{!hideLikeCount && `${post.likesCount || 0} `}Likes</span>
         </button>
 
-        <button
-          className="action-btn"
-          onClick={() => setShowComments(s => !s)}
-        >
-          <FaComment />
-          <span>{localCommentsCount} Comments</span>
-        </button>
+        {!isCommentingOff && (
+          <button
+            className="action-btn"
+            onClick={() => setShowComments(s => !s)}
+          >
+            <FaComment />
+            <span>{localCommentsCount} Comments</span>
+          </button>
+        )}
       </div>
 
-      {showComments && (
+      {!isCommentingOff && showComments && (
         <div className="comments-section">
           {/* New comment input */}
           <form onSubmit={handleSubmitComment} className="comment-form">
-            <img
-              src={userProfile?.photoURL || '/images/default-avatar.png'}
-              alt="You"
-              className="comment-avatar"
-            />
+            <Avatar user={userProfile || currentUser} size={36} className="comment-avatar" />
             <div className="comment-input-wrap">
               <div className="comment-input-container">
                 <input
