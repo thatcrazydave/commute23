@@ -133,7 +133,17 @@ router.get('/', authenticateToken, async (req, res) => {
     const posts = await Post.aggregate(
       buildPostPipeline({ isPending: false, isDeleted: { $ne: true } }, req.user._id, skip, limit)
     );
-    Logger.info('Posts fetched', { count: posts.length, page, userId: req.user._id });
+    Logger.info('Posts fetched', {
+      count: posts.length,
+      page,
+      userId: req.user._id,
+      // Log settings fields for first 3 posts so we can verify they're included in feed
+      settingsSnapshot: posts.slice(0, 3).map(p => ({
+        id: p._id,
+        hideLikeCount: p.hideLikeCount,
+        commentsDisabled: p.commentsDisabled,
+      })),
+    });
     return res.json({ success: true, data: { posts, page, limit } });
   } catch (err) {
     Logger.error('Fetch posts error', { error: err.message });
@@ -242,6 +252,56 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// PATCH /api/posts/:id — edit content, hide like count, or disable comments (author only)
+router.patch('/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
+    }
+
+    const post = await Post.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    if (!post) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
+    }
+    if (post.authorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorised to edit this post' } });
+    }
+
+    const { content, hideLikeCount, commentsDisabled } = req.body;
+    const updates = {};
+
+    if (content !== undefined) {
+      if (!content.trim() && post.mediaIds.length === 0) {
+        return res.status(400).json({ success: false, error: { code: 'EMPTY_POST', message: 'Post must have content or media' } });
+      }
+      if (content.length > 5000) {
+        return res.status(400).json({ success: false, error: { code: 'TOO_LONG', message: 'Post content exceeds 5000 characters' } });
+      }
+      updates.content = content.trim();
+    }
+
+    if (hideLikeCount !== undefined) updates.hideLikeCount = Boolean(hideLikeCount);
+    if (commentsDisabled !== undefined) updates.commentsDisabled = Boolean(commentsDisabled);
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: { code: 'NO_CHANGES', message: 'No valid fields to update' } });
+    }
+
+    Logger.info('Post PATCH — applying updates', { postId: req.params.id, userId: req.user._id, updates });
+    const updated = await Post.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, lean: true });
+    Logger.info('Post PATCH — saved', {
+      postId: req.params.id,
+      hideLikeCount: updated?.hideLikeCount,
+      commentsDisabled: updated?.commentsDisabled,
+      content: updated?.content?.slice(0, 60),
+    });
+    return res.json({ success: true, data: { post: updated } });
+  } catch (err) {
+    Logger.error('Update post error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to update post' } });
+  }
+});
+
 // POST /api/posts/:id/like — toggle like
 router.post('/:id/like', authenticateToken, async (req, res) => {
   try {
@@ -324,6 +384,9 @@ router.post('/:id/comment', authenticateToken, async (req, res) => {
     const post = await Post.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!post) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
+    }
+    if (post.commentsDisabled) {
+      return res.status(403).json({ success: false, error: { code: 'COMMENTS_DISABLED', message: 'Commenting is disabled on this post' } });
     }
 
     const comment = await Comment.create({

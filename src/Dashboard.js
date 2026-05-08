@@ -336,6 +336,12 @@ const Dashboard = () => {
   };
 
 
+  const handlePostUpdate = (postId, updates) => {
+    const apply = (list) => list.map(p => (p._id || p.id) === postId ? { ...p, ...updates } : p);
+    setPosts(apply);
+    setFilteredPosts(apply);
+  };
+
   const handlePostDelete = async (postId) => {
     setPosts(prev => prev.filter(p => (p.id || p._id) !== postId));
     setFilteredPosts(prev => prev.filter(p => (p.id || p._id) !== postId));
@@ -401,6 +407,7 @@ const Dashboard = () => {
                 onDelete={post.authorId === (authUser?._id || authUser?.id) || post.authorId === authUser?.uid
                   ? () => handlePostDelete(post._id || post.id)
                   : null}
+                onUpdate={(updates) => handlePostUpdate(post._id || post.id, updates)}
                 isOffline={!isOnline}
               />
             ))
