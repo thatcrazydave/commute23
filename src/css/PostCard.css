@@ -1,12 +1,12 @@
 /* PostCard.css - Redesigned for better responsiveness and cohesion */
 .post-card {
+  position: relative;
   background-color: white;
   border-radius: 0.75rem;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   margin-bottom: 1.25rem;
   border: 1px solid transparent;
   transition: all 0.2s ease;
-  position: relative;
 }
 
 .post-card:hover {
@@ -551,96 +551,22 @@
   text-decoration: underline;
 }
 
-/* Inline Modal for Delete */
-.inline-modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 20;
-  border-radius: 0.75rem;
-}
-
-.inline-modal {
-  background-color: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  text-align: center;
-  max-width: 90%;
-  border: 1px solid #eaeaea;
-}
-
-.inline-modal h4 {
-  margin: 0 0 0.5rem 0;
-  color: #1f2937;
-}
-
-.inline-modal p {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin: 0 0 1rem 0;
-}
-
-.inline-modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.inline-modal-actions .cancel-btn {
-  padding: 0.5rem 1rem;
-  background-color: #f3f4f6;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  color: #4b5563;
-  font-weight: 500;
-}
-
-.inline-modal-actions .cancel-btn:hover {
-  background-color: #e5e7eb;
-}
-
-.inline-modal-actions .confirm-delete-btn {
-  padding: 0.5rem 1rem;
-  background-color: #ef4444;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  color: white;
-  font-weight: 500;
-}
-
-.inline-modal-actions .confirm-delete-btn:hover {
-  background-color: #dc2626;
-}
-
-/* Edit Mode */
-.post-edit-mode {
-  padding: 0 1rem 1rem;
-}
-
-.post-edit-textarea {
+/* Inline post editing */
+.post-edit-area {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.75rem 1rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
-  font-family: inherit;
   font-size: 1rem;
+  line-height: 1.5;
+  color: #1f2937;
+  outline: none;
   resize: vertical;
   min-height: 80px;
-  margin-bottom: 0.75rem;
-  outline: none;
+  box-sizing: border-box;
 }
 
-.post-edit-textarea:focus {
+.post-edit-area:focus {
   border-color: #4a6cf7;
   box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.2);
 }
@@ -648,32 +574,66 @@
 .post-edit-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.edit-error {
+  font-size: 0.75rem;
+  color: #ef4444;
+  margin: 0.25rem 0 0;
+}
+
+/* Inline delete confirmation overlay */
+.delete-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  backdrop-filter: blur(2px);
+}
+
+.delete-confirm-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1f2937;
+  text-align: center;
+}
+
+.delete-confirm-actions {
+  display: flex;
   gap: 0.75rem;
 }
 
-.post-edit-actions .cancel-btn {
-  padding: 0.5rem 1rem;
-  background-color: transparent;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  color: #4b5563;
-}
-
-.post-edit-actions .cancel-btn:hover {
-  background-color: #f9fafb;
-}
-
-.post-edit-actions .save-btn {
-  padding: 0.5rem 1rem;
-  background-color: #4a6cf7;
+.delete-confirm-btn {
+  padding: 0.5rem 1.25rem;
+  background-color: #ef4444;
+  color: white;
   border: none;
   border-radius: 0.375rem;
-  cursor: pointer;
-  color: white;
   font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.post-edit-actions .save-btn:hover {
-  background-color: #3b5bdb;
+.delete-confirm-btn:hover {
+  background-color: #dc2626;
+}
+
+/* Comments disabled notice */
+.comments-disabled-notice {
+  text-align: center;
+  padding: 0.75rem 1rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-style: italic;
 }

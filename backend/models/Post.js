@@ -17,6 +17,8 @@ const postSchema = new mongoose.Schema(
       enum: ['public', 'followers', 'private'],
       default: 'public',
     },
+    hideLikeCount: { type: Boolean, default: false },
+    commentsDisabled: { type: Boolean, default: false },
     isPending: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
   },
