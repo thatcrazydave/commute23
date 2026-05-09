@@ -1,6 +1,6 @@
 {
   "name": "commute",
-  "version": "0.2.0.0",
+  "version": "0.2.0.1",
   "private": true,
   "dependencies": {
     "@firebase/storage": "^0.14.2",
