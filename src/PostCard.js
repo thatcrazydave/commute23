@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash,
-  FaChevronDown, FaSmile, FaEdit, FaEye, FaEyeSlash, FaBan, FaLink,
+  FaChevronDown, FaSmile, FaEdit, FaEye, FaEyeSlash, FaBan, FaArchive, FaLink,
 } from 'react-icons/fa';
 import EmojiPicker from 'emoji-picker-react';
 import API from './services/api';
@@ -10,7 +10,7 @@ import CustomVideoPlayer from './components/CustomVideoPlayer';
 import Avatar from './components/Avatar';
 import './css/PostCard.css';
 
-const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onUpdate, isOffline }) => {
+const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive, onUpdate, isOffline, hideActions }) => {
   const postId = post._id || post.id;
 
   // Log what the feed returned for this post's settings on every render
@@ -32,7 +32,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onUpdate, 
   const [editText, setEditText] = useState(post.content);
   const [editError, setEditError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [menuLoading, setMenuLoading] = useState(null); // 'edit' | 'hideLikes' | 'disableComments'
+  const [menuLoading, setMenuLoading] = useState(null); // 'edit' | 'hideLikes' | 'disableComments' | 'archive'
 
   const menuRef = useRef(null);
 
@@ -153,6 +153,17 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onUpdate, 
       console.error('[PostCard] PATCH commentsDisabled ✗ — reverting', { postId, status: err.response?.status, detail });
       setLocalCommentsDisabled(!newVal);
       clientLogger.error('Failed to update commenting', { postId, error: err.message });
+    }
+  };
+
+  const handleArchive = async () => {
+    if (menuLoading) return;
+    setShowMenu(false);
+    setMenuLoading('archive');
+    try {
+      onArchive?.(postId);
+    } finally {
+      setMenuLoading(null);
     }
   };
 
@@ -508,7 +519,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onUpdate, 
       {/* Inline delete confirmation overlay */}
       {showDeleteConfirm && (
         <div className="delete-confirm-overlay">
-          <p className="delete-confirm-text">Delete this post? This cannot be undone.</p>
+          <p className="delete-confirm-text">This post will be permanently deleted in 30 days. You can restore it from Recently Deleted.</p>
           <div className="delete-confirm-actions">
             <button className="cancel-reply-btn" onClick={() => setShowDeleteConfirm(false)}>
               Cancel
@@ -532,52 +543,61 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onUpdate, 
           </div>
         </div>
 
-        {/* Options menu */}
-        <div className="post-menu" ref={menuRef}>
-          <button className="menu-button" onClick={() => setShowMenu(s => !s)} aria-label="Post options">
-            <FaEllipsisH />
-          </button>
-          {showMenu && (
-            <div className="menu-dropdown">
-              <button
-                className="menu-item"
-                onClick={() => {
-                  setShowMenu(false);
-                  const link = `${window.location.origin}/post/${postId}`;
-                  navigator.clipboard.writeText(link)
-                    .then(() => alert("Post link copied to clipboard!"))
-                    .catch(err => console.error("Failed to copy link: ", err));
-                }}
-              >
-                <FaLink /> Copy Link
-              </button>
-              {onDelete && (
-                <>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setShowMenu(false); setIsEditing(true); setEditText(localContent); setEditError(null); }}
-                  >
-                    <FaEdit /> Edit Post
-                  </button>
-                  <button className="menu-item" onClick={handleToggleHideLikes}>
-                    {localHideLikeCount ? <FaEye /> : <FaEyeSlash />}
-                    {localHideLikeCount ? 'Show Like Count' : 'Hide Like Count'}
-                  </button>
-                  <button className="menu-item" onClick={handleToggleComments}>
-                    {localCommentsDisabled ? <FaComment /> : <FaBan />}
-                    {localCommentsDisabled ? 'Turn On Commenting' : 'Turn Off Commenting'}
-                  </button>
-                  <button
-                    className="menu-item delete"
-                    onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
-                  >
-                    <FaTrash /> Delete Post
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Options menu — always shows Copy Link; author actions gated on onDelete && !hideActions */}
+        {!hideActions && (
+          <div className="post-menu" ref={menuRef}>
+            <button className="menu-button" onClick={() => setShowMenu(s => !s)} aria-label="Post options">
+              <FaEllipsisH />
+            </button>
+            {showMenu && (
+              <div className="menu-dropdown">
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setShowMenu(false);
+                    const link = `${window.location.origin}/post/${postId}`;
+                    navigator.clipboard.writeText(link)
+                      .then(() => alert("Post link copied to clipboard!"))
+                      .catch(err => console.error("Failed to copy link: ", err));
+                  }}
+                >
+                  <FaLink /> Copy Link
+                </button>
+                {onDelete && (
+                  <>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setShowMenu(false); setIsEditing(true); setEditText(localContent); setEditError(null); }}
+                    >
+                      <FaEdit /> Edit Post
+                    </button>
+                    <button className="menu-item" onClick={handleToggleHideLikes}>
+                      {localHideLikeCount ? <FaEye /> : <FaEyeSlash />}
+                      {localHideLikeCount ? 'Show Like Count' : 'Hide Like Count'}
+                    </button>
+                    <button className="menu-item" onClick={handleToggleComments}>
+                      {localCommentsDisabled ? <FaComment /> : <FaBan />}
+                      {localCommentsDisabled ? 'Turn On Commenting' : 'Turn Off Commenting'}
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={handleArchive}
+                      disabled={menuLoading === 'archive'}
+                    >
+                      <FaArchive /> {menuLoading === 'archive' ? 'Archiving...' : 'Archive'}
+                    </button>
+                    <button
+                      className="menu-item delete"
+                      onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
+                    >
+                      <FaTrash /> Delete Post
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="post-content">

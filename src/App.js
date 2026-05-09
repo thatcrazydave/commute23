@@ -6,9 +6,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Login from "./login";
 import Signup from "./signup";
 import Dashboard from "./Dashboard";
+import Archive from "./Archive";
+import Trash from "./Trash";
 import { SettingsPage } from "./Settings";
 import { FaGithub, FaTwitter, FaLinkedin, FaDiscord, FaCode, FaLaptopCode, FaUsers, FaRocket,
-         FaBars, FaTimes, FaSignOutAlt, FaUser, FaCog, FaBell, FaBookmark } from 'react-icons/fa';
+         FaBars, FaTimes, FaSignOutAlt, FaUser, FaCog, FaBell, FaBookmark, FaArchive, FaTrash } from 'react-icons/fa';
 import Events from "./events";
 import EventDetail from "./eventDetail";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -143,6 +145,12 @@ const Navbar = () => {
                       </Link>
                       <Link to="/bookmarks" className="dropdown-item">
                         <FaBookmark /> Saved Items
+                      </Link>
+                      <Link to="/archive" className="dropdown-item">
+                        <FaArchive /> Archive
+                      </Link>
+                      <Link to="/trash" className="dropdown-item">
+                        <FaTrash /> Recently Deleted
                       </Link>
                       <div className="dropdown-divider"></div>
                       <button 
@@ -846,6 +854,20 @@ const AppShell = () => {
                       <ProtectedRoute>
                         <PageTransition>
                           <SettingsPage />
+                        </PageTransition>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/archive" element={
+                      <ProtectedRoute>
+                        <PageTransition>
+                          <Archive />
+                        </PageTransition>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/trash" element={
+                      <ProtectedRoute>
+                        <PageTransition>
+                          <Trash />
                         </PageTransition>
                       </ProtectedRoute>
                     } />

@@ -8,6 +8,7 @@ const CommentLike = require('../models/CommentLike');
 const Notification = require('../models/Notification');
 const { authenticateToken } = require('../middleware/auth');
 const Logger = require('../utils/logger');
+const { getArchiveQueue } = require('../queues/archiveQueue');
 
 const router = express.Router();
 
@@ -131,7 +132,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const skip = (page - 1) * limit;
 
     const posts = await Post.aggregate(
-      buildPostPipeline({ isPending: false, isDeleted: { $ne: true } }, req.user._id, skip, limit)
+      buildPostPipeline({ isPending: false, status: 'active' }, req.user._id, skip, limit)
     );
     Logger.info('Posts fetched', {
       count: posts.length,
@@ -228,23 +229,157 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE /api/posts/:id — soft delete
+// GET /api/posts/archive — author's archived posts (paginated)
+router.get('/archive', authenticateToken, async (req, res) => {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const skip  = (page - 1) * limit;
+    const userObjId = new mongoose.Types.ObjectId(req.user._id);
+    const posts = await Post.aggregate(
+      buildPostPipeline({ status: 'archived', authorId: userObjId }, req.user._id, skip, limit)
+    );
+    return res.json({ success: true, posts, page, limit });
+  } catch (err) {
+    Logger.error('Get archive error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch archive' } });
+  }
+});
+
+// GET /api/posts/trash — author's recently deleted posts (paginated)
+router.get('/trash', authenticateToken, async (req, res) => {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const skip  = (page - 1) * limit;
+    const userObjId = new mongoose.Types.ObjectId(req.user._id);
+    const posts = await Post.aggregate(
+      buildPostPipeline({ status: 'recently_deleted', authorId: userObjId }, req.user._id, skip, limit)
+    );
+    const now = Date.now();
+    const postsWithCountdown = posts.map(p => ({
+      ...p,
+      daysUntilDeletion: Math.max(0, Math.ceil(((p.deletedAt?.getTime?.() || now) + 30 * 86400000 - now) / 86400000)),
+    }));
+    return res.json({ success: true, posts: postsWithCountdown });
+  } catch (err) {
+    Logger.error('Get trash error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch trash' } });
+  }
+});
+
+// POST /api/posts/:id/archive — move active post to archive
+router.post('/:id/archive', authenticateToken, async (req, res) => {
+  try {
+    if (!isValidId(req.params.id)) return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
+    const post = await Post.findOneAndUpdate(
+      { _id: req.params.id, status: 'active', authorId: req.user._id },
+      { $set: { status: 'archived', archivedAt: new Date() } },
+      { new: true }
+    );
+    if (!post) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found or not yours' } });
+    Logger.info('Post archived', { postId: post._id, userId: req.user._id });
+    return res.json({ success: true });
+  } catch (err) {
+    Logger.error('Archive post error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to archive post' } });
+  }
+});
+
+// POST /api/posts/:id/restore — restore from archive or trash
+router.post('/:id/restore', authenticateToken, async (req, res) => {
+  try {
+    if (!isValidId(req.params.id)) return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
+    const post = await Post.findOne({
+      _id: req.params.id,
+      authorId: req.user._id,
+      status: { $in: ['archived', 'recently_deleted'] },
+    });
+    if (!post) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found or not yours' } });
+    // Cancel BullMQ cleanup job if one exists (guard is the real safety net)
+    if (post.cleanupJobId) {
+      try {
+        const queue = getArchiveQueue();
+        if (queue) {
+          const job = await queue.getJob(post.cleanupJobId);
+          if (job) await job.remove();
+        }
+      } catch (e) {
+        Logger.warn('Could not cancel cleanup job', { jobId: post.cleanupJobId, error: e.message });
+      }
+    }
+    await Post.updateOne(
+      { _id: post._id },
+      { $set: { status: 'active', cleanupJobId: null, deletedAt: null, archivedAt: null } }
+    );
+    Logger.info('Post restored', { postId: post._id, userId: req.user._id });
+    return res.json({ success: true });
+  } catch (err) {
+    Logger.error('Restore post error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to restore post' } });
+  }
+});
+
+// DELETE /api/posts/:id — soft delete (user) or hard delete (admin/moderator)
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
     }
+    const isAdmin = ['admin', 'superadmin', 'moderator'].includes(req.user.role);
+    const query = isAdmin
+      ? { _id: req.params.id, status: { $in: ['active', 'archived', 'recently_deleted'] } }
+      : { _id: req.params.id, status: { $in: ['active', 'archived'] }, authorId: req.user._id };
 
-    const post = await Post.findById(req.params.id);
-    if (!post || post.isDeleted) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
-    }
-    if (post.authorId.toString() !== req.user._id.toString() && !['admin', 'superadmin', 'moderator'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorised to delete this post' } });
+    if (isAdmin) {
+      // Admin/mod delete: straight to 'deleted', no restore path
+      const post = await Post.findOneAndUpdate(
+        query,
+        { $set: { status: 'deleted', deletedAt: new Date(), deletedBy: 'admin' } },
+        { new: true }
+      );
+      if (!post) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
+      Logger.info('Post admin-deleted', { postId: post._id, adminId: req.user._id });
+      return res.json({ success: true });
     }
 
-    await Post.updateOne({ _id: post._id }, { $set: { isDeleted: true } });
-    Logger.info('Post deleted', { postId: post._id, userId: req.user._id });
+    // User delete: recently_deleted with BullMQ 30-day TTL
+    // Cancel any existing cleanup job before creating a new one
+    const existingPost = await Post.findOne({ _id: req.params.id, authorId: req.user._id, status: { $in: ['active', 'archived'] } });
+    if (!existingPost) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
+
+    if (existingPost.cleanupJobId) {
+      try {
+        const queue = getArchiveQueue();
+        if (queue) {
+          const oldJob = await queue.getJob(existingPost.cleanupJobId);
+          if (oldJob) await oldJob.remove();
+        }
+      } catch (e) {
+        Logger.warn('Could not cancel previous cleanup job', { jobId: existingPost.cleanupJobId, error: e.message });
+      }
+    }
+
+    // Enqueue new cleanup job
+    let cleanupJobId = null;
+    const queue = getArchiveQueue();
+    if (queue) {
+      const job = await queue.add(
+        'purge-post',
+        { postId: existingPost._id.toString() },
+        { jobId: `purge-post-${existingPost._id}`, delay: 30 * 24 * 60 * 60 * 1000 }
+      );
+      cleanupJobId = job.id;
+    }
+
+    const updated = await Post.findOneAndUpdate(
+      { _id: existingPost._id, status: { $in: ['active', 'archived'] } },
+      { $set: { status: 'recently_deleted', deletedAt: new Date(), deletedBy: 'user', cleanupJobId } },
+      { new: true }
+    );
+    if (!updated) return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: 'Post already deleted' } });
+
+    Logger.info('Post deleted', { postId: existingPost._id, userId: req.user._id });
     return res.json({ success: true });
   } catch (err) {
     Logger.error('Delete post error', { error: err.message });
@@ -259,7 +394,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
     }
@@ -309,7 +444,7 @@ router.post('/:id/like', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid post ID' } });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
     }
@@ -381,7 +516,7 @@ router.post('/:id/comment', authenticateToken, async (req, res) => {
       }
     }
 
-    const post = await Post.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
     }

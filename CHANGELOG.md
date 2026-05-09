@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0.0] - 2026-05-09
+
+### Added
+- **Post Archive** — users can now archive any post from the three-dot menu; archived posts disappear from the public feed and live in a private `/archive` view
+- **Post Restore** — one-tap restore from either Archive or Recently Deleted brings a post back to the feed with all original likes, comments, and timestamps intact
+- **Recently Deleted** — deleting a post now moves it to a 30-day trash bin at `/trash`; a countdown shows how many days remain before permanent deletion
+- **Automatic Supabase cleanup** — BullMQ archive queue purges Supabase Storage files after the 30-day window, stopping the storage leak that existed on every deleted post
+- **Copy Link** — new option in the three-dot post menu to copy a post's direct link (visible to all viewers)
+
+### Changed
+- Post deletion now moves posts to a 30-day `recently_deleted` state instead of disappearing permanently; admin/mod deletes bypass restore path
+- `Post.isDeleted` (boolean) replaced with `Post.status` enum: `active | archived | recently_deleted | deleted`
+- Feed query now filters on `status: 'active'`; archive and trash are user-private views
+
+### Infrastructure
+- New `archiveQueue` (BullMQ) + `archiveWorker` for deferred Supabase file purge
+- New compound index `{ authorId, status, createdAt }` on Post for archive/trash query performance
+- Migration script `scripts/migrate-post-status.js` with `--dry-run` support for safe backfilling
+
 ## [0.1.0.2] - 2026-05-05
 
 ### Added

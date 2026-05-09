@@ -354,6 +354,16 @@ const Dashboard = () => {
     }
   };
 
+  const handleArchivePost = async (postId) => {
+    try {
+      await API.post(`/posts/${postId}/archive`);
+      setPosts(prev => prev.filter(p => (p._id || p.id) !== postId));
+      setFilteredPosts(prev => prev.filter(p => (p._id || p.id) !== postId));
+    } catch (err) {
+      clientLogger.error('Error archiving post', { postId, error: err.message });
+    }
+  };
+
   const handleConnect = async (userId, isOptimistic = false) => {
     if (!isAuthenticated) return;
     const rec = recommendedConnections.find(r => (r._id || r.id) === userId);
@@ -406,6 +416,9 @@ const Dashboard = () => {
                 onLike={() => handlePostLike(post._id || post.id)}
                 onDelete={post.authorId === (authUser?._id || authUser?.id) || post.authorId === authUser?.uid
                   ? () => handlePostDelete(post._id || post.id)
+                  : null}
+                onArchive={post.authorId === (authUser?._id || authUser?.id) || post.authorId === authUser?.uid
+                  ? handleArchivePost
                   : null}
                 onUpdate={(updates) => handlePostUpdate(post._id || post.id, updates)}
                 isOffline={!isOnline}
