@@ -99,10 +99,18 @@ const start = async () => {
     Logger.info('Media processing worker started');
   }
 
+  let archiveWorker = null;
+  if (isReady()) {
+    const { createArchiveWorker } = require('./workers/archiveWorker');
+    archiveWorker = createArchiveWorker();
+    Logger.info('Archive worker started');
+  }
+
   // Graceful shutdown — registered unconditionally so SIGTERM always drains in-flight requests
   const shutdown = async () => {
     Logger.info('Shutting down...');
     if (mediaWorker) await mediaWorker.close();
+    if (archiveWorker) await archiveWorker.close();
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

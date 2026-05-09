@@ -20,14 +20,24 @@ const postSchema = new mongoose.Schema(
     hideLikeCount: { type: Boolean, default: false },
     commentsDisabled: { type: Boolean, default: false },
     isPending: { type: Boolean, default: false },
-    isDeleted: { type: Boolean, default: false },
+    status: {
+      type: String,
+      enum: ['active', 'archived', 'recently_deleted', 'deleted'],
+      default: 'active',
+      index: true,
+    },
+    archivedAt: { type: Date, default: null },
+    deletedAt:  { type: Date, default: null },
+    cleanupJobId: { type: String, default: null },
+    deletedBy: { type: String, enum: ['user', 'admin'], default: null },
   },
   { timestamps: true }
 );
 
 postSchema.index({ createdAt: -1 });
 postSchema.index({ authorId: 1, createdAt: -1 });
-// Feed query filter+sort — isDeleted+isPending must precede createdAt for index to cover the query
-postSchema.index({ isDeleted: 1, isPending: 1, createdAt: -1 });
+// Feed query filter+sort — status+isPending must precede createdAt for index to cover the query
+postSchema.index({ status: 1, isPending: 1, createdAt: -1 });
+postSchema.index({ authorId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Post || mongoose.model('Post', postSchema);
