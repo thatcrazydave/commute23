@@ -8,6 +8,7 @@ import Signup from "./signup";
 import Dashboard from "./Dashboard";
 import Archive from "./Archive";
 import Trash from "./Trash";
+import Notifications from "./Notifications";
 import { SettingsPage } from "./Settings";
 import { FaGithub, FaTwitter, FaLinkedin, FaDiscord, FaCode, FaLaptopCode, FaUsers, FaRocket,
          FaBars, FaTimes, FaSignOutAlt, FaUser, FaCog, FaBell, FaBookmark, FaArchive, FaTrash } from 'react-icons/fa';
@@ -872,9 +873,11 @@ const AppShell = () => {
                       </ProtectedRoute>
                     } />
                     <Route path="/notifications" element={
-                      <PageTransition>
-                        <PlaceholderPage title="Notifications" />
-                      </PageTransition>
+                      <ProtectedRoute>
+                        <PageTransition>
+                          <Notifications />
+                        </PageTransition>
+                      </ProtectedRoute>
                     } />
                     <Route path="/bookmarks" element={
                       <PageTransition>

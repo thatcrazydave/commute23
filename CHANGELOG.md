@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0.1] - 2026-05-09
+
+### Added
+- **Notifications page** — `/notifications` now renders a real, styled page matching the site's color scheme (primary blue `#4a6cf7`, card backgrounds, border tokens) instead of the placeholder; includes filter tabs (All, Unread, Social, Connections, Events, System), date-grouped notification items, click-to-mark-read, and a "Clear all" button that marks all as read
+
 ## [0.2.0.0] - 2026-05-09
 
 ### Added
