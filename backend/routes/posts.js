@@ -6,9 +6,39 @@ const Like = require('../models/Like');
 const Comment = require('../models/Comment');
 const CommentLike = require('../models/CommentLike');
 const Notification = require('../models/Notification');
+const Connection = require('../models/Connection');
 const { authenticateToken } = require('../middleware/auth');
 const Logger = require('../utils/logger');
 const { getArchiveQueue } = require('../queues/archiveQueue');
+
+// Fire new_post notifications to all confirmed connections — fully async, never blocks response
+async function notifyConnectionsOfNewPost(authorId, authorName, postId) {
+  try {
+    const conns = await Connection.find({
+      $or: [{ requesterId: authorId }, { recipientId: authorId }],
+      status: 'connected',
+    }).lean();
+
+    if (conns.length === 0) return;
+
+    const recipientIds = conns.map(c =>
+      c.requesterId.toString() === authorId.toString() ? c.recipientId : c.requesterId
+    );
+
+    const notifications = recipientIds.map(uid => ({
+      userId: uid,
+      type: 'new_post',
+      content: `${authorName} shared a new post`,
+      refId: postId.toString(),
+      refType: 'Post',
+    }));
+
+    await Notification.insertMany(notifications, { ordered: false });
+    Logger.info('New-post notifications sent', { authorId, count: notifications.length });
+  } catch (err) {
+    Logger.warn('new_post notification batch failed', { error: err.message });
+  }
+}
 
 const router = express.Router();
 
@@ -222,6 +252,11 @@ router.post('/', authenticateToken, async (req, res) => {
     );
 
     Logger.info('Post created', { postId: post._id, userId: req.user._id, mediaCount: mediaIds.length });
+
+    // Fire new_post notifications to connections — non-blocking
+    const authorName = req.user.firstName || req.user.username || 'Someone';
+    notifyConnectionsOfNewPost(req.user._id, authorName, post._id).catch(() => {});
+
     return res.status(201).json({ success: true, data: { post: assembled } });
   } catch (err) {
     Logger.error('Create post error', { error: err.message });

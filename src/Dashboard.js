@@ -212,6 +212,10 @@ const Dashboard = () => {
   // Without this, updateUser(profile) inside loadProfile mutates authUser → the effect
   // re-fires → infinite loop → 429 Too Many Requests.
   const hasFetchedProfile = useRef(false);
+  const pollRef = useRef(null);
+
+  // Clean up polling on unmount
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !authUser) return;
@@ -241,6 +245,9 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     await Promise.allSettled([fetchPosts(), fetchConnections(), fetchRecommendations(), fetchNotifications()]);
+    // Poll unread count every 60 s — keeps the sidebar badge live
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(fetchNotifications, 60_000);
   };
 
   const fetchPosts = async () => {
