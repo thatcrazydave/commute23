@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash,
-  FaChevronDown, FaSmile, FaEdit, FaEye, FaEyeSlash, FaBan, FaArchive,
+<<<<<<< HEAD
+  FaChevronDown, FaSmile, FaEdit, FaEye, FaEyeSlash, FaBan, FaArchive, FaLink,
 } from 'react-icons/fa';
 import EmojiPicker from 'emoji-picker-react';
 import API from './services/api';
@@ -543,8 +544,8 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
           </div>
         </div>
 
-        {/* Options menu — only shown when user is the post author and hideActions is not set */}
-        {onDelete && !hideActions && (
+        {/* Options menu — always shows Copy Link; author actions gated on onDelete && !hideActions */}
+        {!hideActions && (
           <div className="post-menu" ref={menuRef}>
             <button className="menu-button" onClick={() => setShowMenu(s => !s)} aria-label="Post options">
               <FaEllipsisH />
@@ -553,31 +554,47 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
               <div className="menu-dropdown">
                 <button
                   className="menu-item"
-                  onClick={() => { setShowMenu(false); setIsEditing(true); setEditText(localContent); setEditError(null); }}
+                  onClick={() => {
+                    setShowMenu(false);
+                    const link = `${window.location.origin}/post/${postId}`;
+                    navigator.clipboard.writeText(link)
+                      .then(() => alert("Post link copied to clipboard!"))
+                      .catch(err => console.error("Failed to copy link: ", err));
+                  }}
                 >
-                  <FaEdit /> Edit Post
+                  <FaLink /> Copy Link
                 </button>
-                <button className="menu-item" onClick={handleToggleHideLikes}>
-                  {localHideLikeCount ? <FaEye /> : <FaEyeSlash />}
-                  {localHideLikeCount ? 'Show Like Count' : 'Hide Like Count'}
-                </button>
-                <button className="menu-item" onClick={handleToggleComments}>
-                  {localCommentsDisabled ? <FaComment /> : <FaBan />}
-                  {localCommentsDisabled ? 'Turn On Commenting' : 'Turn Off Commenting'}
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={handleArchive}
-                  disabled={menuLoading === 'archive'}
-                >
-                  <FaArchive /> {menuLoading === 'archive' ? 'Archiving...' : 'Archive'}
-                </button>
-                <button
-                  className="menu-item delete"
-                  onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
-                >
-                  <FaTrash /> Delete Post
-                </button>
+                {onDelete && (
+                  <>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setShowMenu(false); setIsEditing(true); setEditText(localContent); setEditError(null); }}
+                    >
+                      <FaEdit /> Edit Post
+                    </button>
+                    <button className="menu-item" onClick={handleToggleHideLikes}>
+                      {localHideLikeCount ? <FaEye /> : <FaEyeSlash />}
+                      {localHideLikeCount ? 'Show Like Count' : 'Hide Like Count'}
+                    </button>
+                    <button className="menu-item" onClick={handleToggleComments}>
+                      {localCommentsDisabled ? <FaComment /> : <FaBan />}
+                      {localCommentsDisabled ? 'Turn On Commenting' : 'Turn Off Commenting'}
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={handleArchive}
+                      disabled={menuLoading === 'archive'}
+                    >
+                      <FaArchive /> {menuLoading === 'archive' ? 'Archiving...' : 'Archive'}
+                    </button>
+                    <button
+                      className="menu-item delete"
+                      onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
+                    >
+                      <FaTrash /> Delete Post
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
