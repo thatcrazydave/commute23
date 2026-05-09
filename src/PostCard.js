@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaThumbsUp, FaComment, FaEllipsisH, FaReply, FaTrash,
-<<<<<<< HEAD
   FaChevronDown, FaSmile, FaEdit, FaEye, FaEyeSlash, FaBan, FaArchive, FaLink,
 } from 'react-icons/fa';
 import EmojiPicker from 'emoji-picker-react';
