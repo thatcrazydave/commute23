@@ -22,6 +22,28 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// PATCH /api/notifications/read-all  (must be BEFORE /:id to avoid route collision)
+router.patch('/read-all', authenticateToken, async (req, res) => {
+  try {
+    await Notification.updateMany({ userId: req.user._id, read: false }, { $set: { read: true } });
+    return res.json({ success: true });
+  } catch (err) {
+    Logger.error('Mark all notifications read error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to mark notifications' } });
+  }
+});
+
+// DELETE /api/notifications  — clear all for user
+router.delete('/', authenticateToken, async (req, res) => {
+  try {
+    await Notification.deleteMany({ userId: req.user._id });
+    return res.json({ success: true });
+  } catch (err) {
+    Logger.error('Delete all notifications error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to delete notifications' } });
+  }
+});
+
 // PATCH /api/notifications/:id/read
 router.patch('/:id/read', authenticateToken, async (req, res) => {
   try {
@@ -36,14 +58,14 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
   }
 });
 
-// PATCH /api/notifications/read-all
-router.patch('/read-all', authenticateToken, async (req, res) => {
+// DELETE /api/notifications/:id  — delete a single notification
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    await Notification.updateMany({ userId: req.user._id, read: false }, { $set: { read: true } });
+    await Notification.deleteOne({ _id: req.params.id, userId: req.user._id });
     return res.json({ success: true });
   } catch (err) {
-    Logger.error('Mark all notifications read error', { error: err.message });
-    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to mark notifications' } });
+    Logger.error('Delete notification error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to delete notification' } });
   }
 });
 
