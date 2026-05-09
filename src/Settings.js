@@ -12,7 +12,10 @@ import {
   FaToggleOn,
   FaToggleOff,
   FaVideo,
+  FaArchive,
+  FaTrash
 } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import API from './services/api';
 import Avatar from './components/Avatar';
 import { useAuth } from './contexts/AuthContext';
@@ -168,6 +171,7 @@ const ProfileTab = ({ user, onProfileUpdate }) => {
 };
 
 const AccountTab = ({ user }) => {
+  const navigate = useNavigate();
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -259,6 +263,21 @@ const AccountTab = ({ user }) => {
             </div>
           </form>
         )}
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">Data & Content</h3>
+        <p className="settings-section-desc">
+          Manage your archived and recently deleted posts.
+        </p>
+        <div className="settings-actions" style={{ justifyContent: 'flex-start', gap: '1rem', marginTop: '1rem' }}>
+          <button className="settings-btn settings-btn--secondary" onClick={() => navigate('/archive')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FaArchive /> View Archive
+          </button>
+          <button className="settings-btn settings-btn--secondary" onClick={() => navigate('/trash')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FaTrash /> Recently Deleted
+          </button>
+        </div>
       </div>
 
       <div className="settings-section settings-section--danger">
