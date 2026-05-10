@@ -56,13 +56,6 @@ function relativeTime(dateStr) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function loadPrefs() {
-  try {
-    const saved = localStorage.getItem('commute_notif_prefs');
-    return saved ? JSON.parse(saved) : {};
-  } catch { return {}; }
-}
-
 const TYPE_TO_PREF = {
   like:                'newLike',
   comment:             'newComment',
@@ -89,12 +82,11 @@ const Navbar = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
-  const [globalToast, setGlobalToast] = useState(null);
+  const [notifPrefs, setNotifPrefs] = useState({});
 
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
   const pollRef = useRef(null);
-  const prevLatestRef = useRef(null);
 
   // ── Firebase auth (for Navbar's own auth awareness) ──────────────────────
   useEffect(() => {
@@ -122,6 +114,14 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', fn);
   }, []);
 
+  // ── Fetch notification preferences ────────────────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) { setNotifPrefs({}); return; }
+    API.get('/notifications/preferences')
+      .then(({ data }) => { if (data.success) setNotifPrefs(data.data.preferences); })
+      .catch(() => {});
+  }, [isAuthenticated]);
+
   // ── Fetch notifications ───────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -129,25 +129,15 @@ const Navbar = () => {
       const { data } = await API.get('/notifications?limit=10');
       if (!data.success) return;
 
-      const prefs = loadPrefs();
       const filtered = data.data.notifications.filter(n => {
         const key = TYPE_TO_PREF[n.type];
-        return !key || prefs[key] !== false;
+        return !key || notifPrefs[key] !== false;
       });
 
       setNotifications(filtered);
       setUnreadCount(filtered.filter(n => !n.read).length);
-
-      if (filtered.length > 0) {
-        const latest = filtered[0];
-        if (prevLatestRef.current && prevLatestRef.current !== latest._id && !latest.read) {
-          setGlobalToast('You have a new notification 🔔');
-          setTimeout(() => setGlobalToast(null), 3000);
-        }
-        prevLatestRef.current = latest._id;
-      }
     } catch { /* silently ignore */ }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, notifPrefs]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -294,9 +284,7 @@ const Navbar = () => {
                                 onClick={() => {
                                   if (!n.read) handleMarkOneRead(n._id);
                                   closeMenus();
-                                  if (n.refType === 'Post' && n.refId) navigate(`/post/${n.refId}`);
-                                  else if (n.type.includes('connection')) navigate('/connections');
-                                  else navigate('/notifications');
+                                  navigate('/notifications');
                                 }}
                                 style={{ cursor: 'pointer' }}
                               >
@@ -411,35 +399,6 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Global Toast Notification */}
-      <AnimatePresence>
-        {globalToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            style={{
-              position: 'fixed',
-              top: 80,
-              left: '50%',
-              background: '#111827',
-              color: '#fff',
-              padding: '12px 24px',
-              borderRadius: 30,
-              fontSize: '0.9rem',
-              fontWeight: 500,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-              zIndex: 9999,
-              pointerEvents: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10
-            }}
-          >
-            {globalToast}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.nav>
   );
 };

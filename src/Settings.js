@@ -295,42 +295,41 @@ const AccountTab = ({ user }) => {
   );
 };
 
-const NotificationsTab = ({ user }) => {
-  const storageKey = `commute_notif_prefs_${user?.id || user?.email || 'guest'}`;
-  
-  const [prefs, setPrefs] = useState(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : {
-        newConnection: true,
-        connectionRequest: true,
-        newComment: true,
-        newLike: false,
-        newPost: true,
-        eventReminder: true,
-        systemAnnouncements: true,
-      };
-    } catch {
-      return {
-        newConnection: true,
-        connectionRequest: true,
-        newComment: true,
-        newLike: false,
-        newPost: true,
-        eventReminder: true,
-        systemAnnouncements: true,
-      };
-    }
-  });
+const NOTIF_PREF_DEFAULTS = {
+  newConnection: true,
+  connectionRequest: true,
+  newComment: true,
+  newLike: false,
+  newPost: true,
+  eventReminder: true,
+  systemAnnouncements: true,
+};
+
+const NotificationsTab = () => {
+  const [prefs, setPrefs] = useState(NOTIF_PREF_DEFAULTS);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    API.get('/notifications/preferences')
+      .then(({ data }) => {
+        if (data.success) setPrefs({ ...NOTIF_PREF_DEFAULTS, ...data.data.preferences });
+      })
+      .catch(() => setError('Failed to load preferences'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const toggle = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
-  const handleSave = () => {
-    localStorage.setItem(storageKey, JSON.stringify(prefs));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-    API.post('/logs/client', { level: 'info', message: 'User updated notification preferences', meta: { tab: 'notifications', prefs } }).catch(() => {});
+  const handleSave = async () => {
+    try {
+      await API.patch('/notifications/preferences', prefs);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setError('Failed to save preferences');
+    }
   };
 
   const rows = [
@@ -343,6 +342,16 @@ const NotificationsTab = ({ user }) => {
     { key: 'systemAnnouncements', label: 'System announcements', desc: 'Important updates and announcements from Commute' },
   ];
 
+  if (loading) {
+    return (
+      <div className="settings-panel">
+        <div className="settings-section" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#888' }}>
+          <FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> Loading preferences…
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="settings-panel">
       <div className="settings-section">
@@ -350,6 +359,7 @@ const NotificationsTab = ({ user }) => {
         <p className="settings-section-desc">
           Choose what you'd like to be notified about inside the app.
         </p>
+        {error && <p style={{ color: '#e53e3e', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{error}</p>}
         <div className="settings-notif-list">
           {rows.map(({ key, label, desc }) => (
             <div key={key} className="settings-notif-row">
@@ -377,19 +387,21 @@ const NotificationsTab = ({ user }) => {
   );
 };
 
-const VideoTab = ({ user }) => {
-  const storageKey = `commute_video_quality_${user?.id || user?.email || 'guest'}`;
-  
-  const [quality, setQuality] = useState(() => {
-    return localStorage.getItem(storageKey) || 'auto';
-  });
+const VideoTab = ({ user, onProfileUpdate }) => {
+  const [quality, setQuality] = useState(user?.videoQuality || 'auto');
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSave = () => {
-    localStorage.setItem(storageKey, quality);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-    API.post('/logs/client', { level: 'info', message: 'User updated video quality settings', meta: { tab: 'video', quality } }).catch(() => {});
+  const handleSave = async () => {
+    try {
+      const res = await API.patch('/users/me', { videoQuality: quality });
+      const updated = res.data?.data?.user || res.data?.user;
+      if (updated && onProfileUpdate) onProfileUpdate(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setError('Failed to save preferences');
+    }
   };
 
   return (
@@ -417,6 +429,7 @@ const VideoTab = ({ user }) => {
           </div>
         </div>
       </div>
+      {error && <p style={{ color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.5rem' }}>{error}</p>}
       <div className="settings-actions">
         <button className="settings-btn settings-btn--primary" onClick={handleSave}>
           {saved ? <><FaCheckCircle /> Saved!</> : 'Save Preferences'}
@@ -466,8 +479,8 @@ const Settings = ({ user, onProfileUpdate }) => {
             >
               {activeTab === 'profile' && <ProfileTab user={user} onProfileUpdate={onProfileUpdate} />}
               {activeTab === 'account' && <AccountTab user={user} />}
-              {activeTab === 'notifications' && <NotificationsTab user={user} />}
-              {activeTab === 'video' && <VideoTab user={user} />}
+              {activeTab === 'notifications' && <NotificationsTab />}
+              {activeTab === 'video' && <VideoTab user={user} onProfileUpdate={onProfileUpdate} />}
             </motion.div>
           </AnimatePresence>
         </div>

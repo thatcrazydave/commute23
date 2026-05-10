@@ -21,7 +21,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 // PATCH /api/users/me — update profile
 router.patch('/me', authenticateToken, async (req, res) => {
   try {
-    const allowed = ['firstName', 'lastName', 'headline', 'bio', 'photoURL', 'isProfileComplete'];
+    const allowed = ['firstName', 'lastName', 'headline', 'bio', 'photoURL', 'isProfileComplete', 'videoQuality'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

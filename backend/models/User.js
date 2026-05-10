@@ -77,6 +77,24 @@ const userSchema = new mongoose.Schema(
     passwordResetCode: String,
     passwordResetCodeExpires: Date,
 
+    // UI preferences (per-user, persisted server-side)
+    videoQuality: {
+      type: String,
+      enum: ['auto', '1080p', '720p', '480p'],
+      default: 'auto',
+    },
+
+    // Notification preferences (per-user, persisted server-side)
+    notificationPreferences: {
+      newConnection:       { type: Boolean, default: true },
+      connectionRequest:   { type: Boolean, default: true },
+      newComment:          { type: Boolean, default: true },
+      newLike:             { type: Boolean, default: false },
+      newPost:             { type: Boolean, default: true },
+      eventReminder:       { type: Boolean, default: true },
+      systemAnnouncements: { type: Boolean, default: true },
+    },
+
     // Activity
     lastLogin: { type: Date, index: true },
     createdAt: { type: Date, default: Date.now, index: true },
@@ -148,6 +166,7 @@ userSchema.methods.toSafeJSON = function () {
     isActive: this.isActive,
     createdAt: this.createdAt,
     lastLogin: this.lastLogin,
+    videoQuality: this.videoQuality || 'auto',
   };
 };
 
