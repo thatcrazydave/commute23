@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   FaBell,
   FaHeart,
@@ -124,10 +124,13 @@ const FILTERS = [
 
 // ── Notification card ──────────────────────────────────────────────────────
 const NotifCard = ({ notif, onRead, onDelete }) => {
+  const navigate = useNavigate();
   const { icon, cls } = getTypeConfig(notif.type);
 
   const handleClick = () => {
     if (!notif.read) onRead(notif._id);
+    if (notif.refType === 'Post' && notif.refId) navigate(`/post/${notif.refId}`);
+    else if (notif.type.includes('connection')) navigate('/connections');
   };
 
   return (

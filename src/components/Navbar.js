@@ -89,10 +89,12 @@ const Navbar = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [globalToast, setGlobalToast] = useState(null);
 
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
   const pollRef = useRef(null);
+  const prevLatestRef = useRef(null);
 
   // ── Firebase auth (for Navbar's own auth awareness) ──────────────────────
   useEffect(() => {
@@ -135,6 +137,15 @@ const Navbar = () => {
 
       setNotifications(filtered);
       setUnreadCount(filtered.filter(n => !n.read).length);
+
+      if (filtered.length > 0) {
+        const latest = filtered[0];
+        if (prevLatestRef.current && prevLatestRef.current !== latest._id && !latest.read) {
+          setGlobalToast('You have a new notification 🔔');
+          setTimeout(() => setGlobalToast(null), 3000);
+        }
+        prevLatestRef.current = latest._id;
+      }
     } catch { /* silently ignore */ }
   }, [isAuthenticated]);
 
@@ -283,7 +294,9 @@ const Navbar = () => {
                                 onClick={() => {
                                   if (!n.read) handleMarkOneRead(n._id);
                                   closeMenus();
-                                  navigate('/notifications');
+                                  if (n.refType === 'Post' && n.refId) navigate(`/post/${n.refId}`);
+                                  else if (n.type.includes('connection')) navigate('/connections');
+                                  else navigate('/notifications');
                                 }}
                                 style={{ cursor: 'pointer' }}
                               >
@@ -397,6 +410,36 @@ const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* Global Toast Notification */}
+      <AnimatePresence>
+        {globalToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            style={{
+              position: 'fixed',
+              top: 80,
+              left: '50%',
+              background: '#111827',
+              color: '#fff',
+              padding: '12px 24px',
+              borderRadius: 30,
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+              zIndex: 9999,
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}
+          >
+            {globalToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.nav>
   );
 };

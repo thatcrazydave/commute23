@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const postSchema = new mongoose.Schema(
   {
     authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    shortId: { type: String, unique: true, index: true },
     content: { type: String, maxlength: 5000, default: '' },
     mediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Media' }],
     mediaType: {

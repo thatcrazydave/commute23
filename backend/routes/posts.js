@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Media = require('../models/Media');
@@ -12,7 +13,7 @@ const Logger = require('../utils/logger');
 const { getArchiveQueue } = require('../queues/archiveQueue');
 
 // Fire new_post notifications to all confirmed connections — fully async, never blocks response
-async function notifyConnectionsOfNewPost(authorId, authorName, postId) {
+async function notifyConnectionsOfNewPost(authorId, authorName, postId, shortId) {
   try {
     const conns = await Connection.find({
       $or: [{ requesterId: authorId }, { recipientId: authorId }],
@@ -29,7 +30,7 @@ async function notifyConnectionsOfNewPost(authorId, authorName, postId) {
       userId: uid,
       type: 'new_post',
       content: `${authorName} shared a new post`,
-      refId: postId.toString(),
+      refId: shortId || postId.toString(),
       refType: 'Post',
     }));
 
@@ -182,6 +183,64 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/posts/p/:id  — Fetch a single post by shortId or ObjectId
+router.get('/p/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = isValidId(id) ? { $or: [{ _id: id }, { shortId: id }] } : { shortId: id };
+    
+    // We can use the same aggregation pipeline logic as the feed
+    const postDoc = await Post.findOne({ ...query, status: 'active' });
+    if (!postDoc) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Post not found' } });
+    }
+
+    const [post] = await Post.aggregate([
+      { $match: { _id: postDoc._id } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'authorId',
+          foreignField: '_id',
+          pipeline: [{ $project: { _id: 1, firstName: 1, lastName: 1, headline: 1, username: 1, profilePicture: 1 } }],
+          as: 'author',
+        },
+      },
+      { $unwind: { path: '$author', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'media',
+          localField: 'mediaIds',
+          foreignField: '_id',
+          as: 'media',
+        },
+      },
+      {
+        $lookup: {
+          from: 'likes',
+          let: { postId: '$_id', userId: req.user._id },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$postId', '$$postId'] }, { $eq: ['$userId', '$$userId'] }] } } },
+            { $limit: 1 },
+          ],
+          as: 'userLike',
+        },
+      },
+      {
+        $addFields: {
+          hasLiked: { $gt: [{ $size: '$userLike' }, 0] },
+        },
+      },
+      { $project: { userLike: 0, mediaIds: 0 } },
+    ]);
+
+    return res.json({ success: true, data: { post } });
+  } catch (err) {
+    Logger.error('Fetch single post error', { error: err.message });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch post' } });
+  }
+});
+
 // POST /api/posts — create
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -234,6 +293,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const post = await Post.create({
       authorId: req.user._id,
+      shortId: crypto.randomBytes(4).toString('hex'),
       content: content?.trim() || '',
       mediaIds: mediaIds.map(id => new mongoose.Types.ObjectId(id)),
       mediaType: resolvedMediaType,
@@ -255,7 +315,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Fire new_post notifications to connections — non-blocking
     const authorName = req.user.firstName || req.user.username || 'Someone';
-    notifyConnectionsOfNewPost(req.user._id, authorName, post._id).catch(() => {});
+    notifyConnectionsOfNewPost(req.user._id, authorName, post._id, post.shortId).catch(() => {});
 
     return res.status(201).json({ success: true, data: { post: assembled } });
   } catch (err) {
@@ -505,7 +565,7 @@ router.post('/:id/like', authenticateToken, async (req, res) => {
           userId: post.authorId,
           type: 'like',
           content: `${req.user.firstName || req.user.username} liked your post`,
-          refId: post._id.toString(),
+          refId: post.shortId || post._id.toString(),
           refType: 'Post',
         }).catch(err => Logger.warn('Like notification failed', { error: err.message }));
       }
@@ -581,7 +641,7 @@ router.post('/:id/comment', authenticateToken, async (req, res) => {
         userId: post.authorId,
         type: 'comment',
         content: `${req.user.firstName || req.user.username} commented on your post`,
-        refId: post._id.toString(),
+        refId: post.shortId || post._id.toString(),
         refType: 'Post',
       }).catch(err => Logger.warn('Comment notification failed', { error: err.message }));
     }

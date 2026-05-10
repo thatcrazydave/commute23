@@ -77,6 +77,7 @@ const ProfileTab = ({ user, onProfileUpdate }) => {
       const updated = res.data?.data?.user || res.data?.user;
       if (updated) onProfileUpdate(updated);
       showToast('Profile updated successfully!');
+      API.post('/logs/client', { level: 'info', message: 'User updated profile settings', meta: { tab: 'profile' } }).catch(() => {});
     } catch (err) {
       showToast(err?.response?.data?.error?.message || 'Failed to save changes.', 'error');
     } finally {
@@ -197,6 +198,7 @@ const AccountTab = ({ user }) => {
       await API.post('/auth/forgot-password', { email: user?.email });
       setResetSent(true);
       showToast('A password reset link has been sent to your email.');
+      API.post('/logs/client', { level: 'info', message: 'User requested password reset via settings', meta: { tab: 'account' } }).catch(() => {});
     } catch (err) {
       showToast(err?.response?.data?.error?.message || 'Failed to send reset email.', 'error');
     } finally {
@@ -293,10 +295,12 @@ const AccountTab = ({ user }) => {
   );
 };
 
-const NotificationsTab = () => {
+const NotificationsTab = ({ user }) => {
+  const storageKey = `commute_notif_prefs_${user?.id || user?.email || 'guest'}`;
+  
   const [prefs, setPrefs] = useState(() => {
     try {
-      const saved = localStorage.getItem('commute_notif_prefs');
+      const saved = localStorage.getItem(storageKey);
       return saved ? JSON.parse(saved) : {
         newConnection: true,
         connectionRequest: true,
@@ -323,9 +327,10 @@ const NotificationsTab = () => {
   const toggle = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
   const handleSave = () => {
-    localStorage.setItem('commute_notif_prefs', JSON.stringify(prefs));
+    localStorage.setItem(storageKey, JSON.stringify(prefs));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+    API.post('/logs/client', { level: 'info', message: 'User updated notification preferences', meta: { tab: 'notifications', prefs } }).catch(() => {});
   };
 
   const rows = [
@@ -372,16 +377,19 @@ const NotificationsTab = () => {
   );
 };
 
-const VideoTab = () => {
+const VideoTab = ({ user }) => {
+  const storageKey = `commute_video_quality_${user?.id || user?.email || 'guest'}`;
+  
   const [quality, setQuality] = useState(() => {
-    return localStorage.getItem('commute_video_quality') || 'auto';
+    return localStorage.getItem(storageKey) || 'auto';
   });
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    localStorage.setItem('commute_video_quality', quality);
+    localStorage.setItem(storageKey, quality);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+    API.post('/logs/client', { level: 'info', message: 'User updated video quality settings', meta: { tab: 'video', quality } }).catch(() => {});
   };
 
   return (
@@ -458,8 +466,8 @@ const Settings = ({ user, onProfileUpdate }) => {
             >
               {activeTab === 'profile' && <ProfileTab user={user} onProfileUpdate={onProfileUpdate} />}
               {activeTab === 'account' && <AccountTab user={user} />}
-              {activeTab === 'notifications' && <NotificationsTab />}
-              {activeTab === 'video' && <VideoTab />}
+              {activeTab === 'notifications' && <NotificationsTab user={user} />}
+              {activeTab === 'video' && <VideoTab user={user} />}
             </motion.div>
           </AnimatePresence>
         </div>

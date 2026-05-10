@@ -402,11 +402,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
 
   const renderComment = (comment) => (
     <div key={comment._id} className="comment">
-      <img
-        src={comment.author?.photoURL || '/images/default-avatar.png'}
-        alt={comment.author?.firstName || 'User'}
-        className="comment-avatar"
-      />
+      <Avatar user={comment.author} size={32} className="comment-avatar" />
       <div className="comment-body">
         <div className="comment-bubble">
           <h5 className="comment-author">
@@ -437,11 +433,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
 
         {showReplies[comment._id] && (replies[comment._id] || []).map(reply => (
           <div key={reply._id} className="comment comment-reply">
-            <img
-              src={reply.author?.photoURL || '/images/default-avatar.png'}
-              alt={reply.author?.firstName || 'User'}
-              className="comment-avatar"
-            />
+            <Avatar user={reply.author} size={32} className="comment-avatar" />
             <div className="comment-body">
               <div className="comment-bubble">
                 <h5 className="comment-author">
@@ -458,11 +450,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
 
         {replyingTo === comment._id && (
           <form className="reply-form" onSubmit={handleReplySubmit}>
-            <img
-              src={userProfile?.photoURL || '/images/default-avatar.png'}
-              alt="You"
-              className="comment-avatar"
-            />
+            <Avatar user={userProfile || currentUser} size={32} className="comment-avatar" />
             <div className="reply-input-wrap">
               <div className="comment-input-container">
                 <input
@@ -668,11 +656,7 @@ const PostCard = ({ post, currentUser, userProfile, onLike, onDelete, onArchive,
             <p className="comments-disabled-notice">Comments are turned off for this post.</p>
           ) : (
             <form onSubmit={handleSubmitComment} className="comment-form">
-              <img
-                src={userProfile?.photoURL || '/images/default-avatar.png'}
-                alt="You"
-                className="comment-avatar"
-              />
+              <Avatar user={userProfile || currentUser} size={32} className="comment-avatar" />
               <div className="comment-input-wrap">
                 <div className="comment-input-container">
                   <input
