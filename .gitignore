@@ -26,6 +26,9 @@ yarn-error.log*
 # gstack local artifacts (security reports, session data — keep local)
 .gstack/
 
+# GBrain worktree pin (machine-local, not shared)
+.gbrain-source
+
 # documents
 *.md
 !README.md
