@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1.0] - 2026-05-10
+
+### Added
+- **Server-side notification preferences** — notification preferences (`newLike`, `newConnection`, `connectionRequest`, `newComment`, `newPost`, `eventReminder`, `systemAnnouncements`) are now stored in MongoDB per user via `GET/PATCH /api/notifications/preferences`; switching accounts no longer bleeds one user's prefs into another's session
+- **Server-side video quality** — video quality preference is stored in MongoDB on the `User` model (`videoQuality` field) and persisted via `PATCH /api/users/me`; the Settings UI reads the initial value from the authenticated user object instead of localStorage
+
+### Changed
+- **Navbar** — notification dropdown now always navigates to `/notifications`; removed the global toast banner that appeared on new notifications (the badge count already signals unread activity); notification filtering now queries server-side preferences instead of reading a shared localStorage key
+- Settings notification and video tabs fetch and save preferences via API instead of localStorage, eliminating cross-user data leakage on shared browsers
+- Removed verbose client-side logging calls from settings save actions
+
 ## [0.2.0.1] - 2026-05-09
 
 ### Added
