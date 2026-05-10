@@ -21,6 +21,27 @@ import Avatar from './components/Avatar';
 import { useAuth } from './contexts/AuthContext';
 import './css/Settings.css';
 
+const UnsavedModal = ({ isOpen, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="settings-modal-overlay">
+      <motion.div
+        className="settings-modal"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+      >
+        <h3>Unsaved Changes</h3>
+        <p>You have unsaved changes. Are you sure you want to leave? Changes will be lost if not saved.</p>
+        <div className="settings-modal-actions">
+          <button className="settings-btn settings-btn--secondary" style={{ backgroundColor: '#e5e7eb', color: '#374151' }} onClick={onCancel}>Stay</button>
+          <button className="settings-btn settings-btn--danger" onClick={onConfirm}>Leave</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const TABS = [
   { id: 'profile', label: 'Profile', icon: <FaUser /> },
   { id: 'account', label: 'Account & Security', icon: <FaShieldAlt /> },
@@ -41,7 +62,7 @@ const Toast = ({ message, type, onClose }) => (
   </motion.div>
 );
 
-const ProfileTab = ({ user, onProfileUpdate }) => {
+const ProfileTab = ({ user, onProfileUpdate, setIsDirty }) => {
   const [form, setForm] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
@@ -60,6 +81,15 @@ const ProfileTab = ({ user, onProfileUpdate }) => {
     });
   }, [user]);
 
+  useEffect(() => {
+    const isChanged = 
+      form.firstName !== (user?.firstName || '') ||
+      form.lastName !== (user?.lastName || '') ||
+      form.headline !== (user?.headline || '') ||
+      form.bio !== (user?.bio || '');
+    if (setIsDirty) setIsDirty(isChanged);
+  }, [form, user, setIsDirty]);
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
@@ -76,6 +106,7 @@ const ProfileTab = ({ user, onProfileUpdate }) => {
       const res = await API.patch('/users/me', form);
       const updated = res.data?.data?.user || res.data?.user;
       if (updated) onProfileUpdate(updated);
+      if (setIsDirty) setIsDirty(false);
       showToast('Profile updated successfully!');
       API.post('/logs/client', { level: 'info', message: 'User updated profile settings', meta: { tab: 'profile' } }).catch(() => {});
     } catch (err) {
@@ -171,7 +202,7 @@ const ProfileTab = ({ user, onProfileUpdate }) => {
   );
 };
 
-const AccountTab = ({ user }) => {
+const AccountTab = ({ user, setIsDirty }) => {
   const navigate = useNavigate();
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
@@ -182,6 +213,11 @@ const AccountTab = ({ user }) => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  useEffect(() => {
+    const isChanged = pwForm.newPw !== '' || pwForm.confirm !== '';
+    if (setIsDirty) setIsDirty(isChanged);
+  }, [pwForm, setIsDirty]);
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -197,6 +233,8 @@ const AccountTab = ({ user }) => {
     try {
       await API.post('/auth/forgot-password', { email: user?.email });
       setResetSent(true);
+      setPwForm({ current: '', newPw: '', confirm: '' });
+      if (setIsDirty) setIsDirty(false);
       showToast('A password reset link has been sent to your email.');
       API.post('/logs/client', { level: 'info', message: 'User requested password reset via settings', meta: { tab: 'account' } }).catch(() => {});
     } catch (err) {
@@ -305,8 +343,9 @@ const NOTIF_PREF_DEFAULTS = {
   systemAnnouncements: true,
 };
 
-const NotificationsTab = () => {
+const NotificationsTab = ({ setIsDirty }) => {
   const [prefs, setPrefs] = useState(NOTIF_PREF_DEFAULTS);
+  const [initialPrefs, setInitialPrefs] = useState(NOTIF_PREF_DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
@@ -314,17 +353,27 @@ const NotificationsTab = () => {
   useEffect(() => {
     API.get('/notifications/preferences')
       .then(({ data }) => {
-        if (data.success) setPrefs({ ...NOTIF_PREF_DEFAULTS, ...data.data.preferences });
+        if (data.success) {
+          const loaded = { ...NOTIF_PREF_DEFAULTS, ...data.data.preferences };
+          setPrefs(loaded);
+          setInitialPrefs(loaded);
+        }
       })
       .catch(() => setError('Failed to load preferences'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (setIsDirty) setIsDirty(JSON.stringify(prefs) !== JSON.stringify(initialPrefs));
+  }, [prefs, initialPrefs, setIsDirty]);
 
   const toggle = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
   const handleSave = async () => {
     try {
       await API.patch('/notifications/preferences', prefs);
+      setInitialPrefs(prefs);
+      if (setIsDirty) setIsDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
@@ -387,16 +436,23 @@ const NotificationsTab = () => {
   );
 };
 
-const VideoTab = ({ user, onProfileUpdate }) => {
+const VideoTab = ({ user, onProfileUpdate, setIsDirty }) => {
   const [quality, setQuality] = useState(user?.videoQuality || 'auto');
+  const [initialQuality, setInitialQuality] = useState(user?.videoQuality || 'auto');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (setIsDirty) setIsDirty(quality !== initialQuality);
+  }, [quality, initialQuality, setIsDirty]);
 
   const handleSave = async () => {
     try {
       const res = await API.patch('/users/me', { videoQuality: quality });
       const updated = res.data?.data?.user || res.data?.user;
       if (updated && onProfileUpdate) onProfileUpdate(updated);
+      setInitialQuality(quality);
+      if (setIsDirty) setIsDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
@@ -441,6 +497,38 @@ const VideoTab = ({ user, onProfileUpdate }) => {
 
 const Settings = ({ user, onProfileUpdate }) => {
   const [activeTab, setActiveTab] = useState('profile');
+  const [isDirty, setIsDirty] = useState(false);
+  const [pendingTab, setPendingTab] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  const handleTabClick = (tabId) => {
+    if (tabId === activeTab) return;
+    if (isDirty) {
+      setPendingTab(tabId);
+    } else {
+      setActiveTab(tabId);
+    }
+  };
+
+  const confirmTabSwitch = () => {
+    setIsDirty(false);
+    setActiveTab(pendingTab);
+    setPendingTab(null);
+  };
+
+  const cancelTabSwitch = () => {
+    setPendingTab(null);
+  };
 
   return (
     <motion.div
@@ -460,7 +548,7 @@ const Settings = ({ user, onProfileUpdate }) => {
             <button
               key={tab.id}
               className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
             >
               <span className="settings-nav-icon">{tab.icon}</span>
               <span>{tab.label}</span>
@@ -477,14 +565,24 @@ const Settings = ({ user, onProfileUpdate }) => {
               exit={{ opacity: 0, x: -12 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'profile' && <ProfileTab user={user} onProfileUpdate={onProfileUpdate} />}
-              {activeTab === 'account' && <AccountTab user={user} />}
-              {activeTab === 'notifications' && <NotificationsTab />}
-              {activeTab === 'video' && <VideoTab user={user} onProfileUpdate={onProfileUpdate} />}
+              {activeTab === 'profile' && <ProfileTab user={user} onProfileUpdate={onProfileUpdate} setIsDirty={setIsDirty} />}
+              {activeTab === 'account' && <AccountTab user={user} setIsDirty={setIsDirty} />}
+              {activeTab === 'notifications' && <NotificationsTab setIsDirty={setIsDirty} />}
+              {activeTab === 'video' && <VideoTab user={user} onProfileUpdate={onProfileUpdate} setIsDirty={setIsDirty} />}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
+      
+      <AnimatePresence>
+        {pendingTab && (
+          <UnsavedModal 
+            isOpen={true} 
+            onConfirm={confirmTabSwitch} 
+            onCancel={cancelTabSwitch} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
