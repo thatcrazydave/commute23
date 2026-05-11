@@ -58,45 +58,98 @@ const CreateEventModal = ({ isOpen, onClose, onEventCreated }) => {
   return (
     <AnimatePresence>
       {isOpen && createPortal(
-        <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-          <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', padding:'20px', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
+        <motion.div
+          className="modal-overlay"
+          initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="create-event-modal"
+            initial={{ y:40, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:40, opacity:0 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button className="modal-close-button" onClick={onClose}><FaTimes /></button>
             <h2>Create New Event</h2>
-            <button onClick={onClose} style={{ position:'absolute', top:15, right:15, background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer' }}><FaTimes /></button>
-            {error && <div style={{ backgroundColor:'#ffecec', color:'#e74c3c', padding:'10px', borderRadius:'5px', marginBottom:'15px' }}><FaExclamationTriangle /> {error}</div>}
+            <div className="modal-divider" />
+
+            {error && (
+              <div className="form-error"><FaExclamationTriangle /> {error}</div>
+            )}
+
             <form onSubmit={handleSubmit}>
-              <div className="form-group"><label>Title *</label><input name="title" value={form.title} onChange={handleChange} placeholder="Event title" required /></div>
+              <div className="form-group">
+                <label>Title *</label>
+                <input name="title" value={form.title} onChange={handleChange} placeholder="Event title" required />
+              </div>
+
               <div className="form-row">
                 <div className="form-group"><label>Date *</label><input type="date" name="date" value={form.date} onChange={handleChange} required /></div>
                 <div className="form-group"><label>Time *</label><input type="time" name="time" value={form.time} onChange={handleChange} required /></div>
               </div>
-              <div className="form-group"><label>Location *</label><input name="location" value={form.location} onChange={handleChange} placeholder="Location" required /></div>
+
+              <div className="form-group">
+                <label>Location *</label>
+                <input name="location" value={form.location} onChange={handleChange} placeholder="Location" required />
+              </div>
+
               <div className="form-row">
-                <div className="form-group"><label>Category</label>
+                <div className="form-group">
+                  <label>Category</label>
                   <select name="category" value={form.category} onChange={handleChange}>
-                    {['conference','workshop','networking','social','tech','business','arts'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                    {['conference','workshop','networking','social','tech','business','arts'].map(c =>
+                      <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>
+                    )}
                   </select>
                 </div>
                 <div className="form-group"><label>Capacity</label><input type="number" name="capacity" value={form.capacity} onChange={handleChange} min="1" /></div>
               </div>
+
               <div className="form-row">
                 <div className="form-group"><label>Price ($)</label><input type="number" name="price" value={form.price} onChange={handleChange} min="0" step="0.01" /></div>
-                <div className="form-group checkbox-group"><label><input type="checkbox" name="isVirtual" checked={form.isVirtual} onChange={handleChange} /> Virtual Event</label></div>
+                <div className="form-group checkbox-group">
+                  <label><input type="checkbox" name="isVirtual" checked={form.isVirtual} onChange={handleChange} /> Virtual Event</label>
+                </div>
               </div>
-              {form.isVirtual && <div className="form-group"><label>Registration Link</label><input type="url" name="registrationLink" value={form.registrationLink} onChange={handleChange} placeholder="Meeting link" /></div>}
-              <div className="form-group"><label>Description *</label><textarea name="description" value={form.description} onChange={handleChange} rows="4" required placeholder="Describe your event" /></div>
+
+              {form.isVirtual && (
+                <div className="form-group">
+                  <label>Registration Link</label>
+                  <input type="url" name="registrationLink" value={form.registrationLink} onChange={handleChange} placeholder="Meeting link" />
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Description *</label>
+                <textarea name="description" value={form.description} onChange={handleChange} rows="4" required placeholder="Describe your event" />
+              </div>
+
               <div className="form-group">
                 <label>Event Image</label>
-                <div className="image-upload-container">
+                <div className="image-upload-container" onClick={() => !imagePreview && fileRef.current?.click()}>
                   {imagePreview
-                    ? <div className="image-preview"><img src={imagePreview} alt="Preview" /><button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}><FaTimes /></button></div>
-                    : <div className="upload-placeholder" onClick={() => fileRef.current?.click()}><FaCamera /><p>Click to upload</p></div>}
+                    ? (
+                      <div className="image-preview">
+                        <img src={imagePreview} alt="Preview" />
+                        <button type="button" onClick={e => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}><FaTimes /></button>
+                      </div>
+                    )
+                    : (
+                      <div className="upload-placeholder">
+                        <FaCamera />
+                        <p>Click to upload an image</p>
+                      </div>
+                    )
+                  }
                   <input type="file" ref={fileRef} onChange={handleImageChange} accept="image/*" style={{ display:'none' }} />
                 </div>
-                {uploadProgress > 0 && uploadProgress < 100 && <div className="upload-progress"><div className="progress-bar" style={{ width:`${uploadProgress}%` }} /><span>{uploadProgress}%</span></div>}
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="upload-progress"><div className="progress-bar" style={{ width:`${uploadProgress}%` }} /></div>
+                )}
               </div>
-              <div style={{ display:'flex', gap:'10px', marginTop:'20px' }}>
-                <button type="button" onClick={onClose} disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', border:'1px solid #ddd', cursor:'pointer' }}>Cancel</button>
-                <button type="submit" disabled={isSubmitting} style={{ flex:1, padding:'10px', borderRadius:'5px', backgroundColor:'#4a76a8', color:'white', border:'none', cursor:'pointer' }}>{isSubmitting ? 'Creating...' : 'Create Event'}</button>
+
+              <div className="modal-form-actions">
+                <button type="button" className="modal-cancel-button" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+                <button type="submit" className="modal-submit-button" disabled={isSubmitting}>{isSubmitting ? 'Creating…' : 'Create Event'}</button>
               </div>
             </form>
           </motion.div>
@@ -112,8 +165,9 @@ const NoEventsFound = ({ isFiltered, resetFilters, createNewEvent }) => (
     <div className="no-events-content">
       <h2>No Events Found</h2>
       {isFiltered
-        ? <><p>No events match your filters.</p><button className="primary-button" onClick={resetFilters}>Clear Filters</button></>
-        : <><p>No upcoming events yet.</p><button className="primary-button" onClick={createNewEvent}>Create an Event</button></>}
+        ? <><p>No events match your current filters.</p><button className="primary-button" onClick={resetFilters}>Clear Filters</button></>
+        : <><p>No upcoming events yet.</p><button className="primary-button" onClick={createNewEvent}>Create an Event</button></>
+      }
     </div>
   </div>
 );
@@ -215,41 +269,81 @@ const Events = () => {
 
   const resetFilters = () => { setFilterOptions({ category:'all', timeFrame:'all', location:'all', price:'all', attendance:'all' }); setSearchTerm(''); };
 
-  const containerVariants = { hidden:{ opacity:0 }, visible:{ opacity:1, transition:{ duration:0.5, when:'beforeChildren', staggerChildren:0.1 } } };
-  const itemVariants = { hidden:{ y:20, opacity:0 }, visible:{ y:0, opacity:1, transition:{ duration:0.3 } } };
+  const containerVariants = { hidden:{ opacity:0 }, visible:{ opacity:1, transition:{ duration:0.5, when:'beforeChildren', staggerChildren:0.08 } } };
+  const itemVariants = { hidden:{ y:16, opacity:0 }, visible:{ y:0, opacity:1, transition:{ duration:0.3 } } };
 
-  if (isLoading && page === 1) return <div className="loading-container"><motion.div className="loading-spinner" animate={{ rotate:360 }} transition={{ duration:1.5, repeat:Infinity, ease:'linear' }}><div className="spinner-inner"/></motion.div><p>Loading events...</p></div>;
-  if (error && page === 1) return <div className="error-container"><h2>Oops!</h2><p>{error}</p><button onClick={() => window.location.reload()}>Try Again</button></div>;
+  if (isLoading && page === 1) return (
+    <div className="loading-container">
+      <motion.div className="loading-spinner" animate={{ rotate:360 }} transition={{ duration:1.2, repeat:Infinity, ease:'linear' }}>
+        <div className="spinner-inner"/>
+      </motion.div>
+      <p>Loading events…</p>
+    </div>
+  );
+
+  if (error && page === 1) return (
+    <div className="error-container">
+      <h2>Oops!</h2>
+      <p>{error}</p>
+      <button onClick={() => window.location.reload()}>Try Again</button>
+    </div>
+  );
 
   return (
     <div className="events-page">
       <motion.div className="events-page-container" initial="hidden" animate="visible" variants={containerVariants}>
+
+        {/* Header */}
         <motion.div className="events-header" variants={itemVariants}>
-          <div className="header-content"><h1>Upcoming Events</h1><p>Discover and join exciting events in your community</p></div>
+          <div className="header-content">
+            <h1>Upcoming Events</h1>
+            <p>Discover and join exciting events in your community</p>
+          </div>
           <div className="header-actions">
-            {(isAdmin||isModerator) && <button className="create-event-button" onClick={() => setShowCreateModal(true)}><FaPlus /> Create Event</button>}
+            {(isAdmin||isModerator) && (
+              <button className="create-event-button" onClick={() => setShowCreateModal(true)}>
+                <FaPlus /> Create Event
+              </button>
+            )}
             <div className="view-toggle">
-              <button className={`view-button ${viewMode==='grid'?'active':''}`} onClick={() => setViewMode('grid')} aria-label="Grid"><FaTh /></button>
-              <button className={`view-button ${viewMode==='list'?'active':''}`} onClick={() => setViewMode('list')} aria-label="List"><FaList /></button>
+              <button className={`view-button ${viewMode==='grid'?'active':''}`} onClick={() => setViewMode('grid')} aria-label="Grid view"><FaTh /></button>
+              <button className={`view-button ${viewMode==='list'?'active':''}`} onClick={() => setViewMode('list')} aria-label="List view"><FaList /></button>
             </div>
           </div>
         </motion.div>
 
+        {/* Search + Filter bar */}
         <motion.div className="search-filter-container" variants={itemVariants}>
-          <div className="search-bar"><FaSearch className="search-icon"/><input type="text" placeholder="Search events..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
+          <div className="search-bar">
+            <FaSearch className="search-icon"/>
+            <input type="text" placeholder="Search events…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+          </div>
           <div className="filter-actions">
             <div className="sort-dropdown">
-              <button className="sort-button"><FaSort/> Sort: {sortBy.charAt(0).toUpperCase()+sortBy.slice(1)}<FaChevronDown className="dropdown-icon"/></button>
-              <div className="sort-options">{['date','popularity','price'].map(s => <button key={s} className={sortBy===s?'active':''} onClick={() => { setSortBy(s); setPage(1); }}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>
+              <button className="sort-button">
+                <FaSort/> Sort: {sortBy.charAt(0).toUpperCase()+sortBy.slice(1)} <FaChevronDown className="dropdown-icon"/>
+              </button>
+              <div className="sort-options">
+                {['date','popularity','price'].map(s => (
+                  <button key={s} className={sortBy===s?'active':''} onClick={() => { setSortBy(s); setPage(1); }}>
+                    {s.charAt(0).toUpperCase()+s.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
-            <button className={`filter-toggle-button ${showFilters?'active':''}`} onClick={() => setShowFilters(s=>!s)}><FaFilter/> {showFilters?'Hide Filters':'Show Filters'}</button>
-            <button className={`my-events-toggle ${myEventsOnly?'active':''}`} onClick={() => { setMyEventsOnly(s=>!s); setPage(1); }}>{myEventsOnly?'All Events':'My Events'}</button>
+            <button className={`filter-toggle-button ${showFilters?'active':''}`} onClick={() => setShowFilters(s=>!s)}>
+              <FaFilter/> {showFilters?'Hide Filters':'Show Filters'}
+            </button>
+            <button className={`my-events-toggle ${myEventsOnly?'active':''}`} onClick={() => { setMyEventsOnly(s=>!s); setPage(1); }}>
+              {myEventsOnly?'All Events':'My Events'}
+            </button>
           </div>
         </motion.div>
 
+        {/* Filters panel */}
         <AnimatePresence>
           {showFilters && (
-            <motion.div className="filters-container" initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.3 }}>
+            <motion.div className="filters-container" initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.25 }}>
               {[
                 { label:'Category', key:'category', opts:[['all','All Categories'],['conference','Conference'],['workshop','Workshop'],['networking','Networking'],['social','Social'],['tech','Tech'],['business','Business'],['arts','Arts & Culture']] },
                 { label:'Time Frame', key:'timeFrame', opts:[['all','All Time'],['today','Today'],['week','This Week'],['month','This Month']] },
@@ -269,17 +363,29 @@ const Events = () => {
           )}
         </AnimatePresence>
 
+        {/* Empty state */}
         {!isLoading && filteredEvents.length === 0 && (
-          <NoEventsFound isFiltered={events.length > 0 && (searchTerm || Object.values(filterOptions).some(v => v!=='all'))} resetFilters={resetFilters} createNewEvent={() => setShowCreateModal(true)} />
+          <NoEventsFound
+            isFiltered={events.length > 0 && (searchTerm || Object.values(filterOptions).some(v => v!=='all'))}
+            resetFilters={resetFilters}
+            createNewEvent={() => setShowCreateModal(true)}
+          />
         )}
 
+        {/* Event cards */}
         {filteredEvents.length > 0 && (
           <>
             <motion.div className={`events-${viewMode}`} variants={containerVariants}>
               {filteredEvents.map(event => (
-                <motion.div key={event._id||event.id} className={`event-card ${viewMode}`} variants={itemVariants} whileHover={{ y:-5, boxShadow:'0 10px 20px rgba(0,0,0,0.1)' }} onClick={() => { setSelectedEvent(event); setShowEventDetails(true); }}>
+                <motion.div
+                  key={event._id||event.id}
+                  className={`event-card ${viewMode}`}
+                  variants={itemVariants}
+                  whileHover={{ y:-4, boxShadow:'0 12px 28px rgba(0,0,0,0.1)' }}
+                  onClick={() => { setSelectedEvent(event); setShowEventDetails(true); }}
+                >
                   <div className="event-image-container">
-                    <img src={event.imageUrl||'https://via.placeholder.com/300x150?text=Event'} alt={event.title} className="event-image"/>
+                    <img src={event.imageUrl||'https://via.placeholder.com/300x160/eef2ff/4a6cf7?text=Event'} alt={event.title} className="event-image"/>
                     <button className="favorite-button" onClick={e => { e.stopPropagation(); toggleFavorite(event._id||event.id); }}>
                       {event.isFavorite ? <FaHeart className="favorite-icon active"/> : <FaRegHeart className="favorite-icon"/>}
                     </button>
@@ -293,10 +399,18 @@ const Events = () => {
                       <div className="event-detail"><FaMapMarkerAlt className="detail-icon"/><span>{event.location}</span></div>
                       {viewMode === 'list' && <div className="event-detail"><FaUsers className="detail-icon"/><span>{event.attendeesCount||0} attending</span></div>}
                     </div>
-                    {viewMode === 'list' && event.description && <p className="event-description">{event.description.substring(0,150)}{event.description.length>150?'...':''}</p>}
+                    {viewMode === 'list' && event.description && (
+                      <p className="event-description">{event.description.substring(0,150)}{event.description.length>150?'…':''}</p>
+                    )}
                     {viewMode === 'list' && (
                       <div className="list-view-actions">
-                        <button className={`register-button ${event.isAttending?'registered':''}`} onClick={e => { e.stopPropagation(); registerForEvent(event._id||event.id); }} disabled={event.isAttending}>{event.isAttending?'Registered':'Register'}</button>
+                        <button
+                          className={`register-button ${event.isAttending?'registered':''}`}
+                          onClick={e => { e.stopPropagation(); registerForEvent(event._id||event.id); }}
+                          disabled={event.isAttending}
+                        >
+                          {event.isAttending?'Registered':'Register'}
+                        </button>
                         <div className="price-tag">{event.price>0?`$${event.price.toFixed(2)}`:'Free'}</div>
                       </div>
                     )}
@@ -304,30 +418,74 @@ const Events = () => {
                 </motion.div>
               ))}
             </motion.div>
-            {hasMore && <div className="load-more-container"><button className="load-more-button" onClick={() => setPage(p=>p+1)} disabled={isLoading}>{isLoading?'Loading...':'Load More Events'}</button></div>}
+            {hasMore && (
+              <div className="load-more-container">
+                <button className="load-more-button" onClick={() => setPage(p=>p+1)} disabled={isLoading}>
+                  {isLoading?'Loading…':'Load More Events'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </motion.div>
 
-      <CreateEventModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onEventCreated={e => { setEvents(prev => [e,...prev]); setShowCreateModal(false); }}/>
+      {/* Create Event Modal */}
+      <CreateEventModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onEventCreated={e => { setEvents(prev => [e,...prev]); setShowCreateModal(false); }}
+      />
 
+      {/* Event Detail Modal */}
       <AnimatePresence>
         {showEventDetails && selectedEvent && createPortal(
-          <motion.div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={() => setShowEventDetails(false)}>
-            <motion.div style={{ backgroundColor:'white', borderRadius:'10px', width:'90%', maxWidth:'800px', maxHeight:'90vh', overflow:'auto', position:'relative' }} initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} onClick={e => e.stopPropagation()}>
-              <button onClick={() => setShowEventDetails(false)} style={{ position:'absolute', top:10, right:10, background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer', zIndex:1 }}><FaTimes/></button>
-              <img src={selectedEvent.imageUrl||'https://via.placeholder.com/800x400?text=Event'} alt={selectedEvent.title} style={{ width:'100%', height:'250px', objectFit:'cover', borderRadius:'10px 10px 0 0' }}/>
-              <div style={{ padding:'20px' }}>
-                <span style={{ backgroundColor:'#eee', borderRadius:'4px', padding:'2px 8px', fontSize:'0.8rem' }}>{selectedEvent.category}</span>
-                <h2 style={{ margin:'10px 0' }}>{selectedEvent.title}</h2>
-                <p><FaCalendarAlt style={{ marginRight:6 }}/>{formatDate(selectedEvent.date)}</p>
-                <p><FaMapMarkerAlt style={{ marginRight:6 }}/>{selectedEvent.location}</p>
-                <p><FaUsers style={{ marginRight:6 }}/>{selectedEvent.attendeesCount||0} attending</p>
-                <p><FaTicketAlt style={{ marginRight:6 }}/>{selectedEvent.price>0?`$${selectedEvent.price.toFixed(2)}`:'Free'}</p>
-                <p style={{ marginTop:'10px' }}>{selectedEvent.description}</p>
-                <div style={{ display:'flex', gap:'10px', marginTop:'15px' }}>
-                  <button className={`register-button ${selectedEvent.isAttending?'registered':''}`} onClick={() => registerForEvent(selectedEvent._id||selectedEvent.id)} disabled={selectedEvent.isAttending}>{selectedEvent.isAttending?'Registered':'Register Now'}</button>
-                  <button className={`favorite-button ${selectedEvent.isFavorite?'favorited':''}`} onClick={() => toggleFavorite(selectedEvent._id||selectedEvent.id)}>{selectedEvent.isFavorite?<FaHeart/>:<FaRegHeart/>} {selectedEvent.isFavorite?'Saved':'Save'}</button>
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            onClick={() => setShowEventDetails(false)}
+          >
+            <motion.div
+              className="event-detail-modal"
+              initial={{ y:40, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:40, opacity:0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button className="modal-close-button" onClick={() => setShowEventDetails(false)}><FaTimes/></button>
+
+              <img
+                src={selectedEvent.imageUrl||'https://via.placeholder.com/800x240/eef2ff/4a6cf7?text=Event'}
+                alt={selectedEvent.title}
+                className="event-detail-image"
+              />
+
+              <div className="event-detail-body">
+                <span className="event-detail-category">{selectedEvent.category}</span>
+                <h2 className="event-detail-title">{selectedEvent.title}</h2>
+
+                <div className="event-detail-meta">
+                  <div className="event-detail-meta-row"><FaCalendarAlt className="event-detail-meta-icon"/>{formatDate(selectedEvent.date)}</div>
+                  <div className="event-detail-meta-row"><FaMapMarkerAlt className="event-detail-meta-icon"/>{selectedEvent.location}</div>
+                  <div className="event-detail-meta-row"><FaUsers className="event-detail-meta-icon"/>{selectedEvent.attendeesCount||0} attending</div>
+                  <div className="event-detail-meta-row"><FaTicketAlt className="event-detail-meta-icon"/>{selectedEvent.price>0?`$${selectedEvent.price.toFixed(2)}`:'Free'}</div>
+                </div>
+
+                {selectedEvent.description && (
+                  <p className="event-detail-description">{selectedEvent.description}</p>
+                )}
+
+                <div className="event-detail-actions">
+                  <button
+                    className={`detail-register-button ${selectedEvent.isAttending?'registered':''}`}
+                    onClick={() => registerForEvent(selectedEvent._id||selectedEvent.id)}
+                    disabled={selectedEvent.isAttending}
+                  >
+                    {selectedEvent.isAttending?'Registered':'Register Now'}
+                  </button>
+                  <button
+                    className={`detail-save-button ${selectedEvent.isFavorite?'favorited':''}`}
+                    onClick={() => toggleFavorite(selectedEvent._id||selectedEvent.id)}
+                  >
+                    {selectedEvent.isFavorite?<FaHeart/>:<FaRegHeart/>} {selectedEvent.isFavorite?'Saved':'Save'}
+                  </button>
                 </div>
               </div>
             </motion.div>
