@@ -2,6 +2,7 @@ const express = require('express');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { authenticateToken } = require('../middleware/auth');
+const UserCache = require('../services/userCache');
 const Logger = require('../utils/logger');
 
 const router = express.Router();
@@ -32,6 +33,7 @@ router.patch('/me', authenticateToken, async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select('-password');
+    UserCache.invalidate(req.user._id);
     return res.json({ success: true, data: { user: user.toSafeJSON() } });
   } catch (err) {
     Logger.error('Update profile error', { error: err.message });

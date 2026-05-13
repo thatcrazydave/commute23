@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const TokenService = require('../services/tokenService');
 const PasswordValidator = require('../services/passwordValidator');
+const UserCache = require('../services/userCache');
 const { getFirebaseAdmin } = require('../config/firebaseAdmin');
 const { authenticateToken } = require('../middleware/auth');
 const {
@@ -167,6 +168,7 @@ router.post('/login', validateLogin, checkAccountLockout, async (req, res) => {
     handleSuccessfulLogin(req, identifier);
     user.lastLogin = new Date();
     await user.save();
+    UserCache.invalidate(user._id);
 
     const { accessToken, refreshToken } = tokenPair(user);
     Logger.info('Successful login', { userId: user._id, identifier, role: user.role, ip: req.ip });
@@ -246,6 +248,7 @@ router.post('/firebase-login', async (req, res) => {
         if (!user.photoURL || user.photoURL === '/images/default-avatar.png') user.photoURL = picture;
         user.emailVerified = true;
         await user.save();
+        UserCache.invalidate(user._id);
       }
     }
 
@@ -272,6 +275,7 @@ router.post('/firebase-login', async (req, res) => {
 
     user.lastLogin = new Date();
     await user.save();
+    UserCache.invalidate(user._id);
 
     const { accessToken, refreshToken } = tokenPair(user);
 
@@ -436,6 +440,7 @@ router.post('/forgot-password', validateForgotPassword, async (req, res) => {
     user.passwordResetExpires = Date.now() + 60 * 60 * 1000;
     user.passwordResetCodeExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
+    UserCache.invalidate(user._id);
 
     // TODO: hook up real email service — send resetToken/resetCode via email
     // Dev: check server logs for token (Logger.info below), never return it in the response
@@ -498,6 +503,7 @@ router.post('/reset-password/:token', async (req, res) => {
     user.passwordResetCodeExpires = undefined;
     user.tokenVersion = (user.tokenVersion || 0) + 1; // invalidate all sessions
     await user.save();
+    UserCache.invalidate(user._id);
 
     Logger.info('Password reset successful', { userId: user._id });
     return res.json({ success: true, message: 'Password reset, please log in.' });
@@ -531,6 +537,7 @@ router.get('/verify-email/:token', async (req, res) => {
     user.emailVerificationCode = undefined;
     user.emailVerificationCodeExpires = undefined;
     await user.save();
+    UserCache.invalidate(user._id);
     return res.json({ success: true, message: 'Email verified' });
   } catch (err) {
     Logger.error('Verify email error', { error: err.message });

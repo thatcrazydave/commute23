@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const TokenService = require('../services/tokenService');
+const UserCache = require('../services/userCache');
 const Logger = require('../utils/logger');
 
 // Runs the same checks as authenticateToken (L1-L7) but NEVER calls res.status() or res.json().
@@ -33,8 +34,14 @@ module.exports = async function optionalAuth(req, res, next) {
       return next();
     }
 
-    // L4: Fetch fresh user
-    const user = await User.findById(decoded.id).select('-password -refreshToken');
+    // L4: Fetch user — Redis cache first, MongoDB on miss
+    let user = await UserCache.get(decoded.id);
+    if (user) {
+      user._id = user._id || decoded.id;
+    } else {
+      user = await User.findById(decoded.id).select('-password -refreshToken');
+      if (user) UserCache.set(decoded.id, user);
+    }
     if (!user) return next();
 
     // L5: Account status
