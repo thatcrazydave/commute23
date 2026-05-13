@@ -57,6 +57,7 @@ Frontend uses `REACT_APP_API_URL` (default `http://localhost:5001/api`).
 - `backend/config/` — db.js (Mongoose), supabase.js, redis.js, firebaseAdmin.js
 - `backend/services/tokenService.js` — JWT sign/verify/revoke, token version management
 - `backend/services/passwordValidator.js` — password strength rules (zxcvbn-style)
+- `backend/services/userCache.js` — Redis user cache (60s TTL for user objects, 300s for stats). Used by both auth middlewares at L4 to avoid a MongoDB query on every request. Call `UserCache.invalidate(userId)` after any write to the user document; call `UserCache.invalidateStats(userId)` after post create/delete.
 - `backend/utils/logger.js` — structured server-side logger
 - `backend/scripts/createIndexes.js` — run once to create MongoDB indexes
 

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const TokenService = require('../services/tokenService');
+const UserCache = require('../services/userCache');
 const Logger = require('../utils/logger');
 
 const errorResponse = (res, status, code, message, extra = {}) => {
@@ -40,8 +41,16 @@ const authenticateToken = async (req, res, next) => {
       return errorResponse(res, 401, 'TOKEN_REVOKED', 'Token has been revoked');
     }
 
-    // L4: Fetch fresh user
-    const user = await User.findById(decoded.id).select('-password');
+    // L4: Fetch user — Redis cache first, MongoDB on miss
+    let user = await UserCache.get(decoded.id);
+    if (user) {
+      // Rehydrate plain object into a Mongoose-compatible shape for downstream code.
+      // We use a lean object here; consumers access fields via dot notation only.
+      user._id = user._id || decoded.id;
+    } else {
+      user = await User.findById(decoded.id).select('-password');
+      if (user) UserCache.set(decoded.id, user); // populate cache asynchronously — no await
+    }
     if (!user) {
       return errorResponse(res, 403, 'USER_NOT_FOUND', 'User account not found');
     }

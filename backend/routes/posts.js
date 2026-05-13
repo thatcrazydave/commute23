@@ -9,6 +9,7 @@ const CommentLike = require('../models/CommentLike');
 const Notification = require('../models/Notification');
 const Connection = require('../models/Connection');
 const { authenticateToken } = require('../middleware/auth');
+const UserCache = require('../services/userCache');
 const Logger = require('../utils/logger');
 const { getArchiveQueue } = require('../queues/archiveQueue');
 
@@ -311,6 +312,7 @@ router.post('/', authenticateToken, async (req, res) => {
       buildPostPipeline({ _id: post._id }, req.user._id, 0, 1)
     );
 
+    UserCache.invalidateStats(req.user._id);
     Logger.info('Post created', { postId: post._id, userId: req.user._id, mediaCount: mediaIds.length });
 
     // Fire new_post notifications to connections — non-blocking
@@ -474,6 +476,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     );
     if (!updated) return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: 'Post already deleted' } });
 
+    UserCache.invalidateStats(req.user._id);
     Logger.info('Post deleted', { postId: existingPost._id, userId: req.user._id });
     return res.json({ success: true });
   } catch (err) {
