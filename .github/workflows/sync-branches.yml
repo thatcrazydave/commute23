@@ -1,0 +1,109 @@
+name: Sync master into all branches
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync-branches:
+    name: Merge master into downstream branches
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync master into every other branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          SUCCEEDED=()
+          AUTO_RESOLVED=()
+          FAILED=()
+
+          mapfile -t BRANCHES < <(
+            git branch -r --format='%(refname:short)' \
+              | grep -v '^origin/HEAD$' \
+              | sed 's|^origin/||'
+          )
+
+          for BRANCH in "${BRANCHES[@]}"; do
+            # Never merge master into itself
+            if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
+              continue
+            fi
+
+            echo "::group::Processing branch: $BRANCH"
+
+            # Guard: branch may have been deleted since we listed it
+            if ! git ls-remote --exit-code origin "refs/heads/${BRANCH}" > /dev/null 2>&1; then
+              echo "Branch '$BRANCH' no longer exists on remote — skipping."
+              echo "::endgroup::"
+              continue
+            fi
+
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+
+            # --- Attempt 1: clean merge ---
+            if git merge --no-edit --no-ff origin/master; then
+              git push origin "$BRANCH"
+              echo "SUCCESS (clean merge): $BRANCH"
+              SUCCEEDED+=("$BRANCH")
+
+            # --- Attempt 2: auto-resolve by accepting master's version ---
+            else
+              echo "::warning::Conflict detected on '$BRANCH' — attempting auto-resolution (master wins)."
+              git merge --abort
+
+              if git merge -X theirs --no-edit --no-ff origin/master; then
+                git push origin "$BRANCH"
+                echo "SUCCESS (auto-resolved, master version used in conflicts): $BRANCH"
+                AUTO_RESOLVED+=("$BRANCH")
+
+              # --- Attempt 3: unresolvable — open a GitHub Issue ---
+              else
+                git merge --abort
+                echo "::error::Could not auto-resolve '$BRANCH' — opening GitHub Issue."
+                FAILED+=("$BRANCH")
+
+                gh issue create \
+                  --repo "$REPO" \
+                  --title "Auto-sync failed: master into $BRANCH" \
+                  --body "The automated branch sync workflow could not merge \`master\` into \`$BRANCH\` even with \`-X theirs\`.
+
+**Action required:** manually merge or rebase \`master\` into \`$BRANCH\` and resolve the conflict.
+
+_Triggered by commit \`${{ github.sha }}\` — $(date -u '+%Y-%m-%d %H:%M UTC')_"
+              fi
+            fi
+
+            echo "::endgroup::"
+          done
+
+          # ---- Final summary ------------------------------------------------
+          echo ""
+          echo "===== Sync summary ====="
+          [[ ${#SUCCEEDED[@]} -gt 0 ]]     && printf 'Clean merge (%d):\n'         "${#SUCCEEDED[@]}"     && printf '  + %s\n' "${SUCCEEDED[@]}"
+          [[ ${#AUTO_RESOLVED[@]} -gt 0 ]] && printf 'Auto-resolved (%d):\n'       "${#AUTO_RESOLVED[@]}" && printf '  * %s\n' "${AUTO_RESOLVED[@]}"
+          [[ ${#FAILED[@]} -gt 0 ]]        && printf 'Issue opened (%d):\n'        "${#FAILED[@]}"        && printf '  ! %s\n' "${FAILED[@]}"
+          echo "Done."
+
+          # Fail the job if any branch was completely unresolvable so GitHub
+          # sends a failure notification and the run shows red in the Actions tab.
+          [[ ${#FAILED[@]} -eq 0 ]] || exit 1
